@@ -41,7 +41,7 @@ class EEGPreprocess():
 
     def forward(self, x):
         # remove
-        x_new = np.delete(x, [32, 42, 59, 63], axis=0)
+        x = np.delete(x, [32, 42, 59, 63], axis=0)
         # 滤波
         x = self.filtering(x)
         # 归一化
