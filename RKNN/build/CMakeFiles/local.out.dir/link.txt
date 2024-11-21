@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/local.out.dir/src/rknn_local_deploy.cpp.o -o local.out   -L/userdata/cai/RSVP/lib  -Wl,-rpath,/userdata/cai/RSVP/lib -lrknnrt 

@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/main.out.dir/src/gstf_model.cpp.o CMakeFiles/main.out.dir/src/local_model.cpp.o CMakeFiles/main.out.dir/src/main.cpp.o -o main.out   -L/userdata/cai/RSVP/lib  -Wl,-rpath,/userdata/cai/RSVP/lib -lrknnrt 
