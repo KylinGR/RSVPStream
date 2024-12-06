@@ -10,7 +10,7 @@
 
 #include "opencv2/opencv.hpp"
 #include "utils/common.h"
-#include "utils/logger.h"
+#include "utils/module_logger.h"
 #include "utils/module_profiler.h"
 
 // 禁止拷贝和移动
