@@ -1,0 +1,42 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+../include/gstf_model.h
+vector
+-
+iostream
+-
+rknn_api.h
+../include/rknn_api.h
+
+../include/local_model.h
+vector
+-
+iostream
+-
+rknn_api.h
+../include/rknn_api.h
+
+../include/rknn_api.h
+stdint.h
+-
+
+/userdata/cai/RSVP/src/main.cpp
+iostream
+-
+vector
+-
+cstdlib
+-
+ctime
+-
+gstf_model.h
+/userdata/cai/RSVP/src/gstf_model.h
+local_model.h
+/userdata/cai/RSVP/src/local_model.h
+

@@ -1,0 +1,3 @@
+/userdata/cai/RSVP/build/CMakeFiles/rebuild_cache.dir
+/userdata/cai/RSVP/build/CMakeFiles/edit_cache.dir
+/userdata/cai/RSVP/build/CMakeFiles/rknn_main.out.dir

@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/gstf.out.dir/src/rknn_gstf_deploy.cpp.o -o gstf.out   -L/userdata/cai/RSVP/lib  -Wl,-rpath,/userdata/cai/RSVP/lib -lrknnrt 
