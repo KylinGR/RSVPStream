@@ -1,15 +1,32 @@
-cmake_minimum_required(VERSION 3.16)
-project(RSVPStream)
+cmake_minimum_required(VERSION 3.10)  # 指定最低版本要求
+project(rsvp_rknn)             # 项目名称
 
-set(CMAKE_CXX_STANDARD 17)
+# 设置 C++ 标准
+set(CMAKE_CXX_STANDARD 17)            
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# 设置输出目录
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+#添加3rd目录
+add_subdirectory(3rdparty/cnpy) #设置cnpy路径
 
-# 包含头文件
-include_directories(include)
+# 头文件路径
+include_directories(
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/3rdparty/cnpy)
 
-# 添加子目录
-add_subdirectory(src)
-add_subdirectory(tests)
+# 链接库路径
+link_directories(${CMAKE_SOURCE_DIR}/lib)
+
+# 链接的库
+set(LINK_LIBS rknnrt)
+
+# 可执行文件输出名称
+add_executable(rsvp_rknn
+    src/main.cpp
+    src/xgbdim.cpp
+    src/utils.cpp
+    src/ensemble_model.cpp
+)
+
+# 链接库到可执行文件
+target_link_libraries(rsvp_rknn ${LINK_LIBS} cnpy)
+

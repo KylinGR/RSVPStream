@@ -1,8 +1,0 @@
-{
-  "name": "RSVPStream",
-  "version": "1.0",
-  "settings": {
-    "input_path": "./data/input/",
-    "output_path": "./data/output/"
-  }
-}
