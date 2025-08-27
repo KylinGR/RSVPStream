@@ -19,14 +19,17 @@ link_directories(${CMAKE_SOURCE_DIR}/lib)
 # 链接的库
 set(LINK_LIBS rknnrt)
 
-# 可执行文件输出名称
-add_executable(rsvp_rknn
-    src/main.cpp
-    src/xgbdim.cpp
+# 多线程异步版本（主程序）
+add_executable(rsvp_rknn_async
+    src/main_refactored.cpp
+    src/data_preprocessor.cpp
+    src/inference_engine.cpp
+    src/performance_evaluator.cpp
+    src/async_pipeline.cpp
     src/utils.cpp
     src/ensemble_model.cpp
 )
 
 # 链接库到可执行文件
-target_link_libraries(rsvp_rknn ${LINK_LIBS} cnpy)
+target_link_libraries(rsvp_rknn_async ${LINK_LIBS} cnpy pthread)
 

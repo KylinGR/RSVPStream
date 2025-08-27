@@ -1,1 +1,3 @@
 *.npz
+3rdparty/
+build/
