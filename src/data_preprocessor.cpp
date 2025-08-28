@@ -20,11 +20,11 @@ DataPreprocessor::DataPreprocessor(const ModelConfig& config)
 }
 
 void DataPreprocessor::initialize() {
-    load_model_order();
-    setup_3d_convolution();
+    _load_model_order();
+    _setup_3d_convolution();
 }
 
-void DataPreprocessor::setup_3d_convolution() {
+void DataPreprocessor::_setup_3d_convolution() {
     int Nx_channel = channel_loc_[0].size();
     std::vector<int> channel_xst;
     for (int i = 0; i <= Nx_channel - config_.chan_xlen; i += config_.step_x) {
@@ -64,38 +64,58 @@ void DataPreprocessor::setup_3d_convolution() {
     N_model_ = std::min(N_conv_, config_.max_N_model);
 }
 
-void DataPreprocessor::load_model_order() {
+void DataPreprocessor::_load_model_order() {
     model_order_ = load_npz_array_int(config_.model_path, "model_order");
 }
 
 ProcessedData DataPreprocessor::process_file(const std::string& file_path, int sample_id) {
-    auto x_global = read_data(file_path);
-    preprocess_data(x_global);
-    auto x_local = get_3d_cuboids(x_global);
-    reorder_local_data(x_local);
+    // 使用优化的数据处理流程
+    std::vector<float> data_flat;
+    size_t rows, cols;
+    _read_data(file_path, data_flat, rows, cols);
+    _preprocess_data(data_flat, rows, cols);
+    
+    // 直接从连续内存格式生成3D cuboids，避免格式转换
+    auto x_local = _get_3d_cuboids(data_flat, rows, cols);
+    _reorder_local_data(x_local);
+    
+    // 转换x_global为兼容格式（仅在需要时）
+    std::vector<std::vector<float>> x_global(rows, std::vector<float>(cols));
+    for (size_t i = 0; i < rows; ++i) {
+        for (size_t j = 0; j < cols; ++j) {
+            x_global[i][j] = data_flat[i * cols + j];
+        }
+    }
     
     return {x_local, x_global, file_path, sample_id};
 }
 
-std::vector<std::vector<float>> DataPreprocessor::read_data(const std::string& data_src) {
-    return load_npz_2d_array_float(data_src, "data");
+void DataPreprocessor::_read_data(const std::string& data_src, std::vector<float>& data, size_t& rows, size_t& cols) {
+    data = load_npz_2d_array_float(data_src, "data", rows, cols);
 }
 
-void DataPreprocessor::preprocess_data(std::vector<std::vector<float>>& data) {
-    for (size_t i = 0; i < data.size(); ++i) {
+void DataPreprocessor::_preprocess_data(std::vector<float>& data, size_t rows, size_t cols) {
+    // 对每一行进行均值中心化
+    for (size_t i = 0; i < rows; ++i) {
+        const size_t row_start = i * cols;
+        const size_t row_end = row_start + cols;
+        
+        // 计算均值 - 使用更高效的累积方式
         float sum = 0.0f;
-        for (size_t j = 0; j < data[i].size(); ++j) {
-            sum += data[i][j];
+        for (size_t j = row_start; j < row_end; ++j) {
+            sum += data[j];
         }
-        float mean = sum / data[i].size();
-        for (size_t j = 0; j < data[i].size(); ++j) {
-            data[i][j] -= mean;
+        const float mean = sum / cols;
+        
+        // 原地减去均值
+        for (size_t j = row_start; j < row_end; ++j) {
+            data[j] -= mean;
         }
     }
 }
 
-std::vector<std::vector<float>> DataPreprocessor::get_3d_cuboids(
-    const std::vector<std::vector<float>>& data) {
+std::vector<std::vector<float>> DataPreprocessor::_get_3d_cuboids(
+    const std::vector<float>& data, size_t rows, size_t cols) {
     std::vector<std::vector<float>> Tset(T_local_, std::vector<float>(N_chanwin_ * N_win_, 0.0f));
     
     int idx_conv = -1;
@@ -110,8 +130,9 @@ std::vector<std::vector<float>> DataPreprocessor::get_3d_cuboids(
             for (int i = start; i < end; ++i) {
                 for (int chan : chan_indices) {
                     int chan_idx = channel_[chan - 1] - 1;
-                    if (cup_index < T_local_) {
-                        Tset[cup_index][idx_conv] = data[chan_idx][i];
+                    if (cup_index < T_local_ && chan_idx < static_cast<int>(rows) && i < static_cast<int>(cols)) {
+                        // 直接访问连续内存：data[row * cols + col]
+                        Tset[cup_index][idx_conv] = data[chan_idx * cols + i];
                         ++cup_index;
                     }
                 }
@@ -121,7 +142,7 @@ std::vector<std::vector<float>> DataPreprocessor::get_3d_cuboids(
     return Tset;
 }
 
-void DataPreprocessor::reorder_local_data(std::vector<std::vector<float>>& x_local) {
+void DataPreprocessor::_reorder_local_data(std::vector<std::vector<float>>& x_local) {
     for (auto& row : x_local) {
         std::vector<float> new_row;
         for (int k = 0; k < config_.N_local_model; ++k) {

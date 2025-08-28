@@ -24,8 +24,8 @@ std::tuple<float, float, float, float, float> PerformanceEvaluator::evaluate(
     }
     
     int total_samples = config_.n_positive + config_.n_negative;
-    auto labels = generate_labels(total_samples);
-    auto predictions = make_predictions(scores);
+    auto labels = _generate_labels(total_samples);
+    auto predictions = _make_predictions(scores);
     
     // 计算TP, FP
     int n_tp = 0, n_fp = 0;
@@ -38,18 +38,18 @@ std::tuple<float, float, float, float, float> PerformanceEvaluator::evaluate(
     float fpr = static_cast<float>(n_fp) / config_.n_negative;
     float ba = (tpr + (1 - fpr)) / 2;
     float acc = static_cast<float>(n_tp + (config_.n_negative - n_fp)) / total_samples;
-    float auc = calculate_auc(scores, labels);
+    float auc = _calculate_auc(scores, labels);
     
     return {ba, acc, tpr, fpr, auc};
 }
 
-std::vector<int> PerformanceEvaluator::generate_labels(int total_samples) {
+std::vector<int> PerformanceEvaluator::_generate_labels(int total_samples) {
     std::vector<int> labels(total_samples, 1);
     std::fill(labels.begin() + config_.n_positive, labels.end(), 0);
     return labels;
 }
 
-std::vector<int> PerformanceEvaluator::make_predictions(const std::vector<float>& scores) {
+std::vector<int> PerformanceEvaluator::_make_predictions(const std::vector<float>& scores) {
     std::vector<int> predictions;
     predictions.reserve(scores.size());
     
@@ -60,8 +60,8 @@ std::vector<int> PerformanceEvaluator::make_predictions(const std::vector<float>
     return predictions;
 }
 
-float PerformanceEvaluator::calculate_auc(const std::vector<float>& scores, 
-                                         const std::vector<int>& labels) {
+float PerformanceEvaluator::_calculate_auc(const std::vector<float>& scores, 
+                                          const std::vector<int>& labels) {
     std::vector<float> fpr_list, tpr_list;
     
     for (float threshold = 0.0; threshold <= 1.0; threshold += 0.01) {

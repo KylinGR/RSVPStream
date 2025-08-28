@@ -51,8 +51,8 @@ public:
     std::tuple<float, float, float, float, float> run_evaluation();
     
 private:
-    void preprocess_worker();
-    void inference_worker(int worker_id);  // 添加worker_id参数
-    std::vector<std::string> get_file_list();
-    void populate_file_queue();
+    void _preprocess_worker();
+    void _inference_worker(int worker_id);  // 添加worker_id参数
+    void _setup_file_queue();
+    int _detect_npu_cores();
 };

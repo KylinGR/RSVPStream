@@ -28,10 +28,10 @@ public:
     ProcessedData process_file(const std::string& file_path, int sample_id);
     
 private:
-    void setup_3d_convolution();
-    void load_model_order();
-    std::vector<std::vector<float>> read_data(const std::string& data_src);
-    void preprocess_data(std::vector<std::vector<float>>& data);
-    std::vector<std::vector<float>> get_3d_cuboids(const std::vector<std::vector<float>>& data);
-    void reorder_local_data(std::vector<std::vector<float>>& x_local);
+    void _setup_3d_convolution();
+    void _load_model_order();
+    void _read_data(const std::string& data_src, std::vector<float>& data, size_t& rows, size_t& cols);
+    void _preprocess_data(std::vector<float>& data, size_t rows, size_t cols);
+    std::vector<std::vector<float>> _get_3d_cuboids(const std::vector<float>& data, size_t rows, size_t cols);
+    void _reorder_local_data(std::vector<std::vector<float>>& x_local);
 };

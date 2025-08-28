@@ -15,7 +15,7 @@ public:
     );
     
 private:
-    std::vector<int> generate_labels(int total_samples);
-    std::vector<int> make_predictions(const std::vector<float>& scores);
-    float calculate_auc(const std::vector<float>& scores, const std::vector<int>& labels);
+    std::vector<int> _generate_labels(int total_samples);
+    std::vector<int> _make_predictions(const std::vector<float>& scores);
+    float _calculate_auc(const std::vector<float>& scores, const std::vector<int>& labels);
 };

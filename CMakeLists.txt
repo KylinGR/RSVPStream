@@ -21,13 +21,12 @@ set(LINK_LIBS rknnrt)
 
 # 多线程异步版本（主程序）
 add_executable(rsvp_rknn_async
-    src/main_refactored.cpp
+    src/main.cpp
     src/data_preprocessor.cpp
     src/inference_engine.cpp
     src/performance_evaluator.cpp
     src/async_pipeline.cpp
     src/utils.cpp
-    src/ensemble_model.cpp
 )
 
 # 链接库到可执行文件
