@@ -16,6 +16,28 @@ std::vector<int64_t> load_npz_array_int(const std::string& file_path, const std:
     return result;
 }
 
+std::vector<int64_t> load_npy_array_int(const std::string& file_path) {
+    cnpy::NpyArray arr = cnpy::npy_load(file_path);
+    std::vector<int64_t> result(arr.shape[0]);
+    
+    // 根据数据类型进行转换
+    if (arr.word_size == sizeof(int32_t)) {
+        const int32_t* data = arr.data<int32_t>();
+        for (size_t i = 0; i < arr.shape[0]; ++i) {
+            result[i] = static_cast<int64_t>(data[i]);
+        }
+    } else if (arr.word_size == sizeof(int64_t)) {
+        const int64_t* data = arr.data<int64_t>();
+        for (size_t i = 0; i < arr.shape[0]; ++i) {
+            result[i] = data[i];
+        }
+    } else {
+        throw std::runtime_error("Unsupported data type in " + file_path);
+    }
+    
+    return result;
+}
+
 std::vector<float> load_npz_2d_array_float(const std::string& file_path, const std::string& array_name, 
                                                     size_t& rows, size_t& cols) {
     cnpy::npz_t npz = cnpy::npz_load(file_path);

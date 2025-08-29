@@ -12,7 +12,6 @@ AsyncPipeline::AsyncPipeline(const ModelConfig& config,
 }
 
 AsyncPipeline::~AsyncPipeline() {
-    // 确保所有线程都已完成
     for (auto& thread : preprocess_threads_) {
         if (thread.joinable()) {
             thread.join();
@@ -29,11 +28,9 @@ void AsyncPipeline::initialize() {
     preprocessor_ = std::make_unique<DataPreprocessor>(config_);
     preprocessor_->initialize();
     
-    // 自动检测NPU核心数量
     int num_npu_cores = _detect_npu_cores();
     std::cout << "Detected " << num_npu_cores << " NPU cores" << std::endl;
     
-    // 为每个NPU核心创建独立的推理引擎实例
     inference_engines_.reserve(num_npu_cores);
     for (int i = 0; i < num_npu_cores; ++i) {
         auto engine = std::make_unique<InferenceEngine>(config_.rknn_model_path);
@@ -46,13 +43,12 @@ void AsyncPipeline::initialize() {
 }
 
 std::tuple<float, float, float, float, float> AsyncPipeline::run_evaluation() {
-    // 重置计数器
     processed_count_ = 0;
     inference_count_ = 0;
     stop_preprocessing_ = false;
     stop_inference_ = false;
     
-    // 设置文件队列（合并原来的获取文件列表和填充队列操作）
+    // 设置文件队列
     _setup_file_queue();
     
     // 启动预处理线程（可以根据CPU核数调整）

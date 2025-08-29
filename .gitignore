@@ -1,3 +1,5 @@
 *.npz
 3rdparty/
 build/
+.vscode/
+tests/

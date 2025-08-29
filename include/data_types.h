@@ -23,7 +23,7 @@ struct EvaluationConfig {
 };
 
 struct ModelConfig {
-    std::string model_path;
+    std::string model_order_path;  // 独立的model_order.npy文件路径
     std::string rknn_model_path;
     int win_len;
     int chan_xlen;

@@ -8,7 +8,7 @@ int main() {
     try {
         // 配置参数
         ModelConfig model_config = {
-            .model_path = "/home/hzhy/workspace/csk/RSVPStream/data/model/model.npz",
+            .model_order_path = "/home/hzhy/workspace/csk/RSVPStream/data/model/model_order.npy",
             .rknn_model_path = "/home/hzhy/workspace/csk/RSVPStream/data/model/optimized_model_v3_1.rknn",
             .win_len = 6,
             .chan_xlen = 3,
