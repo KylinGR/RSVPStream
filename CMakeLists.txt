@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(rsvp_rknn)
+project(rsvp_fpga)
 
 set(CMAKE_CXX_STANDARD 17)            
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -26,20 +26,25 @@ add_subdirectory(3rdparty/cnpy)
 
 include_directories(
     ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/include/pcie
     ${CMAKE_SOURCE_DIR}/3rdparty/cnpy)
 
 link_directories(${CMAKE_SOURCE_DIR}/lib)
 
-set(LINK_LIBS rknnrt)
+# 移除RKNN依赖，FPGA处理不需要
+# set(LINK_LIBS rknnrt)
 
-add_executable(rsvp_rknn_async
+add_executable(rsvp_fpga_async
     src/main.cpp
     src/data_preprocessor.cpp
-    src/inference_engine.cpp
+    src/fpga_inference_engine.cpp
     src/performance_evaluator.cpp
     src/async_pipeline.cpp
     src/utils.cpp
+    src/pcie/PcieMatrixTransfer.cpp
+    src/pcie/dma_utils.cpp
+    src/pcie/HzhyGadget.cpp
 )
 
-target_link_libraries(rsvp_rknn_async ${LINK_LIBS} cnpy pthread)
+target_link_libraries(rsvp_fpga_async cnpy pthread)
 

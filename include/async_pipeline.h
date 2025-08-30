@@ -10,7 +10,7 @@
 #include "data_types.h"
 #include "thread_safe_queue.h"
 #include "data_preprocessor.h"
-#include "inference_engine.h"
+#include "fpga_inference_engine.h"
 #include "performance_evaluator.h"
 
 class AsyncPipeline {
@@ -30,9 +30,9 @@ private:
     
     // 处理器
     std::unique_ptr<DataPreprocessor> preprocessor_;
-    std::vector<std::unique_ptr<InferenceEngine>> inference_engines_;  // 多个推理引擎实例
+    std::vector<std::unique_ptr<FpgaInferenceEngine>> fpga_engines_;  // FPGA推理引擎
     std::unique_ptr<PerformanceEvaluator> evaluator_;
-    std::mutex inference_engine_mutex_;  // 保护推理引擎访问的互斥锁
+    std::mutex fpga_engine_mutex_;  // 保护FPGA引擎访问的互斥锁
     
     // 控制变量
     std::atomic<bool> stop_preprocessing_{false};
@@ -52,7 +52,7 @@ public:
     
 private:
     void _preprocess_worker();
-    void _inference_worker(int worker_id);  // 添加worker_id参数
+    void _fpga_inference_worker(int worker_id);  // FPGA推理工作线程
     void _setup_file_queue();
-    int _detect_npu_cores();
+    int _detect_fpga_devices();  // 检测FPGA设备数量
 };

@@ -28,15 +28,15 @@ void AsyncPipeline::initialize() {
     preprocessor_ = std::make_unique<DataPreprocessor>(config_);
     preprocessor_->initialize();
     
-    int num_npu_cores = _detect_npu_cores();
-    std::cout << "Detected " << num_npu_cores << " NPU cores" << std::endl;
+    int num_fpga_devices = _detect_fpga_devices();
+    std::cout << "Detected " << num_fpga_devices << " FPGA devices" << std::endl;
     
-    inference_engines_.reserve(num_npu_cores);
-    for (int i = 0; i < num_npu_cores; ++i) {
-        auto engine = std::make_unique<InferenceEngine>(config_.rknn_model_path);
+    fpga_engines_.reserve(num_fpga_devices);
+    for (int i = 0; i < num_fpga_devices; ++i) {
+        auto engine = std::make_unique<FpgaInferenceEngine>(config_.fpga_config);
         engine->initialize();
-        inference_engines_.push_back(std::move(engine));
-        std::cout << "Initialized inference engine " << (i + 1) << " for NPU core " << i << std::endl;
+        fpga_engines_.push_back(std::move(engine));
+        std::cout << "Initialized FPGA inference engine " << (i + 1) << std::endl;
     }
     
     evaluator_ = std::make_unique<PerformanceEvaluator>(eval_config_);
@@ -57,11 +57,11 @@ std::tuple<float, float, float, float, float> AsyncPipeline::run_evaluation() {
         preprocess_threads_.emplace_back(&AsyncPipeline::_preprocess_worker, this);
     }
     
-    // 启动推理线程（使用检测到的NPU核心数量）
-    int num_inference_threads = static_cast<int>(inference_engines_.size());  // 使用已初始化的推理引擎数量
-    std::cout << "Starting " << num_inference_threads << " inference threads for NPU cores..." << std::endl;
+    // 启动FPGA推理线程
+    int num_inference_threads = static_cast<int>(fpga_engines_.size());
+    std::cout << "Starting " << num_inference_threads << " FPGA inference threads..." << std::endl;
     for (int i = 0; i < num_inference_threads; ++i) {
-        inference_threads_.emplace_back(&AsyncPipeline::_inference_worker, this, i);
+        inference_threads_.emplace_back(&AsyncPipeline::_fpga_inference_worker, this, i);
     }
     
     // 等待所有预处理完成
@@ -121,25 +121,25 @@ void AsyncPipeline::_preprocess_worker() {
     }
 }
 
-void AsyncPipeline::_inference_worker(int worker_id) {
+void AsyncPipeline::_fpga_inference_worker(int worker_id) {
     ProcessedData data;
     
-    std::cout << "Inference worker " << worker_id << " started" << std::endl;
+    std::cout << "FPGA inference worker " << worker_id << " started" << std::endl;
     
     while (!stop_inference_) {
         if (processed_queue_.wait_and_pop(data)) {
             try {
-                // 使用对应的推理引擎实例
-                auto result = inference_engines_[worker_id]->run_inference(data);
+                // 使用对应的FPGA推理引擎实例
+                auto result = fpga_engines_[worker_id]->run_inference(data);
                 result_queue_.push(result);
                 inference_count_++;
                 
                 if (inference_count_ % 100 == 0) {
-                    std::cout << "Inference completed: " << inference_count_ 
+                    std::cout << "FPGA inference completed: " << inference_count_ 
                               << " samples (worker " << worker_id << ")" << std::endl;
                 }
             } catch (const std::exception& e) {
-                std::cerr << "Error in inference worker " << worker_id 
+                std::cerr << "Error in FPGA inference worker " << worker_id 
                           << " for " << data.file_path << ": " << e.what() << std::endl;
             }
         } else {
@@ -148,7 +148,7 @@ void AsyncPipeline::_inference_worker(int worker_id) {
         }
     }
     
-    std::cout << "Inference worker " << worker_id << " finished" << std::endl;
+    std::cout << "FPGA inference worker " << worker_id << " finished" << std::endl;
 }
 
 void AsyncPipeline::_setup_file_queue() {
@@ -174,68 +174,65 @@ void AsyncPipeline::_setup_file_queue() {
     file_queue_.set_finished();
 }
 
-int AsyncPipeline::_detect_npu_cores() {
-    // 方法1: 尝试读取RK3588 NPU设备信息
-    std::vector<std::string> npu_device_paths = {
-        "/sys/class/devfreq/fdab0000.npu/device",
-        "/sys/devices/platform/fdab0000.npu",
-        "/dev/rknpu_mem",
-        "/proc/device-tree/npu",
-        "/sys/kernel/debug/rknpu"
+int AsyncPipeline::_detect_fpga_devices() {
+    // 方法1: 检查XDMA设备文件
+    std::vector<std::string> xdma_device_paths = {
+        "/dev/xdma0_h2c_0",  // 主机到FPGA
+        "/dev/xdma0_c2h_0",  // FPGA到主机
+        "/dev/xdma0_user",   // 用户空间设备
+        "/dev/xdma0_control" // 控制设备
     };
     
-    // 检查NPU设备是否存在
-    bool npu_detected = false;
-    for (const auto& path : npu_device_paths) {
+    int fpga_devices_found = 0;
+    bool xdma_detected = false;
+    
+    for (const auto& path : xdma_device_paths) {
         if (std::filesystem::exists(path)) {
-            npu_detected = true;
-            std::cout << "NPU device detected at: " << path << std::endl;
-            break;
+            xdma_detected = true;
+            std::cout << "XDMA device detected: " << path << std::endl;
         }
     }
     
-    if (npu_detected) {
-        // 方法2: 检查CPU信息确认是RK3588
-        std::ifstream cpuinfo("/proc/cpuinfo");
-        std::string line;
-        bool is_rk3588 = false;
+    if (xdma_detected) {
+        fpga_devices_found = 1;  // 假设有一个FPGA设备
         
-        if (cpuinfo.is_open()) {
-            while (std::getline(cpuinfo, line)) {
-                if (line.find("rk3588") != std::string::npos || 
-                    line.find("RK3588") != std::string::npos) {
-                    is_rk3588 = true;
+        // 方法2: 检查是否有多个FPGA设备
+        for (int i = 1; i < 4; ++i) {  // 检查最多4个设备
+            std::string h2c_path = "/dev/xdma" + std::to_string(i) + "_h2c_0";
+            std::string c2h_path = "/dev/xdma" + std::to_string(i) + "_c2h_0";
+            
+            if (std::filesystem::exists(h2c_path) && std::filesystem::exists(c2h_path)) {
+                std::cout << "Additional FPGA device detected: xdma" << i << std::endl;
+                fpga_devices_found++;
+            }
+        }
+    }
+    
+    // 方法3: 检查PCIe设备信息
+    if (!xdma_detected) {
+        std::ifstream lspci_check("/proc/bus/pci/devices");
+        if (lspci_check.is_open()) {
+            std::string line;
+            while (std::getline(lspci_check, line)) {
+                // 查找Xilinx设备ID (简化检查)
+                if (line.find("10ee") != std::string::npos) {  // Xilinx vendor ID
+                    std::cout << "Xilinx PCIe device detected in /proc/bus/pci/devices" << std::endl;
+                    fpga_devices_found = 1;
                     break;
                 }
             }
-            cpuinfo.close();
-        }
-        
-        // 方法3: 检查设备树信息
-        if (!is_rk3588) {
-            std::ifstream devicetree("/proc/device-tree/compatible");
-            if (devicetree.is_open()) {
-                std::string content;
-                std::getline(devicetree, content);
-                if (content.find("rk3588") != std::string::npos) {
-                    is_rk3588 = true;
-                }
-                devicetree.close();
-            }
-        }
-        
-        if (is_rk3588) {
-            std::cout << "RK3588 platform detected, using 3 NPU cores" << std::endl;
-            return 3;  // RK3588有3个NPU核心
+            lspci_check.close();
         }
     }
     
-    // 方法4: 尝试通过RKNN运行时查询（如果可能）
-    // 这里可以添加RKNN API查询逻辑，但需要包含相应的头文件
+    if (fpga_devices_found > 0) {
+        std::cout << "Total FPGA devices detected: " << fpga_devices_found << std::endl;
+        return fpga_devices_found;
+    }
     
-    // 默认情况：如果检测失败，使用保守的单核心设置
-    std::cout << "Could not detect NPU cores automatically, defaulting to 1 core" << std::endl;
-    std::cout << "You can manually set the number of cores if needed" << std::endl;
+    // 默认情况：如果检测失败，使用单个FPGA设备
+    std::cout << "Could not detect FPGA devices automatically, defaulting to 1 device" << std::endl;
+    std::cout << "Note: FPGA simulation mode will be used" << std::endl;
     
-    return 1;  // 默认使用1个核心
+    return 1;  // 默认使用1个FPGA设备
 }

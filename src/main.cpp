@@ -9,7 +9,23 @@ int main() {
         // 配置参数
         ModelConfig model_config = {
             .model_order_path = "/home/hzhy/workspace/csk/RSVPStream/data/model/model_order.npy",
-            .rknn_model_path = "/home/hzhy/workspace/csk/RSVPStream/data/model/optimized_model_v3_1.rknn",
+            .fpga_config = {
+                .dev_h2c = "/dev/xdma0_h2c_0",        // 主机到FPGA设备
+                .dev_c2h = "/dev/xdma0_c2h_0",        // FPGA到主机设备
+                .base_addr = 0x01000000ULL,           // DDR基地址
+                .x_local_offset = 0x00000000ULL,      // x_local数据在DDR中的偏移
+                .x_global_offset = 0x00100000ULL,     // x_global数据在DDR中的偏移
+                .result_offset = 0x00200000ULL,       // 结果数据在DDR中的偏移
+                .ctrl_reg_offset = 0x00300000ULL,     // 控制寄存器偏移
+                .status_reg_offset = 0x00300004ULL,   // 状态寄存器偏移
+                .data_ready_offset = 0x00300008ULL,   // 数据就绪标志偏移
+                .result_ready_offset = 0x0030000CULL, // 结果就绪标志偏移
+                .processing_timeout_us = 50000,       // FPGA处理超时时间50ms
+                .polling_interval_us = 100,           // 状态轮询间隔100μs
+                .use_dynamic_quantization = true,     // 启用动态量化
+                .use_hardware_sync = false,           // 暂时禁用硬件同步（测试用）
+                .result_size = 100                    // 期望结果向量大小
+            },
             .win_len = 6,
             .chan_xlen = 3,
             .chan_ylen = 3,
@@ -66,7 +82,7 @@ int main() {
                   << ", FPR: " << fpr 
                   << ", AUC: " << auc << std::endl;
         
-        std::cout << "=== Multi-threaded Performance Statistics ===" << std::endl;
+        std::cout << "=== FPGA Multi-threaded Performance Statistics ===" << std::endl;
         std::cout << "Total evaluation time: " << total_seconds << " seconds" << std::endl;
         std::cout << "Processed samples: " << file_count << std::endl;
         std::cout << "Average time per sample: " << std::setprecision(3) << std::fixed 
