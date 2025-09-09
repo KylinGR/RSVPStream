@@ -1,99 +1,16 @@
-#include "async_pipeline.h"
+#include "xgbdim.h"
 #include <iostream>
 #include <iomanip>
-#include <chrono>
-#include <filesystem>
 
 int main() {
-    try {
-        // 配置参数
-        ModelConfig model_config = {
-            .model_order_path = "/home/hzhy/workspace/csk/RSVPStream/data/model/model_order.npy",
-            .fpga_config = {
-                .dev_h2c = "/dev/xdma0_h2c_0",        // 主机到FPGA设备
-                .dev_c2h = "/dev/xdma0_c2h_0",        // FPGA到主机设备
-                .base_addr = 0x01000000ULL,           // DDR基地址
-                .x_local_offset = 0x00000000ULL,      // x_local数据在DDR中的偏移
-                .x_global_offset = 0x00100000ULL,     // x_global数据在DDR中的偏移
-                .result_offset = 0x00200000ULL,       // 结果数据在DDR中的偏移
-                .ctrl_reg_offset = 0x00300000ULL,     // 控制寄存器偏移
-                .status_reg_offset = 0x00300004ULL,   // 状态寄存器偏移
-                .data_ready_offset = 0x00300008ULL,   // 数据就绪标志偏移
-                .result_ready_offset = 0x0030000CULL, // 结果就绪标志偏移
-                .processing_timeout_us = 50000,       // FPGA处理超时时间50ms
-                .polling_interval_us = 100,           // 状态轮询间隔100μs
-                .use_dynamic_quantization = true,     // 启用动态量化
-                .use_hardware_sync = false,           // 暂时禁用硬件同步（测试用）
-                .result_size = 100                    // 期望结果向量大小
-            },
-            .win_len = 6,
-            .chan_xlen = 3,
-            .chan_ylen = 3,
-            .step_x = 3,
-            .step_y = 3,
-            .max_N_model = 299,
-            .gstf_weight = 0.3,
-            .N_local_model = 299
-        };
-        
-        EvaluationConfig eval_config = {
-            .n_positive = 61,
-            .n_negative = 1096,
-            .threshold = 0.5
-        };
-        
-        std::string data_directory = "/home/hzhy/workspace/csk/RSVPStream/data/egg_data";
-        
-        // 统计文件数量
-        int file_count = 0;
-        for (auto& entry : std::filesystem::directory_iterator(data_directory)) {
-            if (entry.is_regular_file()) {
-                file_count++;
-            }
-        }
-        std::cout << "Total files to process: " << file_count << std::endl;
-        
-        // 创建异步管道
-        AsyncPipeline pipeline(model_config, eval_config, data_directory);
-        
-        std::cout << "Initializing async pipeline..." << std::endl;
-        auto init_start = std::chrono::high_resolution_clock::now();
-        pipeline.initialize();
-        auto init_end = std::chrono::high_resolution_clock::now();
-        
-        std::cout << "Initialization completed in " 
-                  << std::chrono::duration_cast<std::chrono::milliseconds>(init_end - init_start).count()
-                  << " ms" << std::endl;
-        
-        std::cout << "Starting evaluation..." << std::endl;
-        auto eval_start = std::chrono::high_resolution_clock::now();
-        auto [ba, acc, tpr, fpr, auc] = pipeline.run_evaluation();
-        auto eval_end = std::chrono::high_resolution_clock::now();
-        
-        auto eval_duration = std::chrono::duration_cast<std::chrono::milliseconds>(eval_end - eval_start);
-        double total_seconds = static_cast<double>(eval_duration.count()) / 1000.0;
-        double avg_time_per_sample = total_seconds / file_count;
-        
-        // 输出结果
-        std::cout << std::setprecision(4) << std::fixed 
-                  << "Results - BA: " << ba 
-                  << ", ACC: " << acc 
-                  << ", TPR: " << tpr 
-                  << ", FPR: " << fpr 
-                  << ", AUC: " << auc << std::endl;
-        
-        std::cout << "=== FPGA Multi-threaded Performance Statistics ===" << std::endl;
-        std::cout << "Total evaluation time: " << total_seconds << " seconds" << std::endl;
-        std::cout << "Processed samples: " << file_count << std::endl;
-        std::cout << "Average time per sample: " << std::setprecision(3) << std::fixed 
-                  << avg_time_per_sample << " seconds" << std::endl;
-        std::cout << "Throughput: " << std::setprecision(2) << std::fixed 
-                  << (1.0 / avg_time_per_sample) << " samples/second" << std::endl;
-        
-    } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-        return 1;
-    }
-    
+    std::string model_path = "../model.npz"; //模型参数
+    std::string rknn_model_path = "../rknn_model/optimized_model_v3_1.rknn";
+    // std::string rknn_model_path = "/userdata/rsvp/rknn_model/ensemble_with_norm.rknn";
+    XGBDIM xgb(1, model_path, rknn_model_path, 50, 6, 3, 3, 3, 3, 299, 0.3);
+    std::cout << "Starting program..." << std::endl;
+    auto [ba, acc, tpr, fpr, auc] = xgb.test();
+    std::cout << std::setprecision(4) << std::fixed << "BA: " << ba << ", ACC: " << acc << ", TPR: " << tpr << ", FPR: " << fpr << ", AUC: " << auc << std::endl;
+
     return 0;
 }
+
