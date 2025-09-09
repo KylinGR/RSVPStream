@@ -19,6 +19,7 @@ public:
 
 private:
     std::string rknn_model_path_;
+    int npu_core_id_;  // NPU核心ID，-1表示自动选择
     
     // RKNN相关
     rknn_context ctx_ = 0;
@@ -30,7 +31,7 @@ private:
     std::vector<std::vector<float>> outputs_;
 
 public:
-    explicit InferenceEngine(const std::string& rknn_model_path);
+    explicit InferenceEngine(const std::string& rknn_model_path, int npu_core_id = -1);
     ~InferenceEngine();
     
     void initialize();

@@ -51,8 +51,10 @@ public:
     std::tuple<float, float, float, float, float> run_evaluation();
     
 private:
-    void _preprocess_worker();
+    void _preprocess_worker(int worker_id);  // 添加worker_id参数
     void _inference_worker(int worker_id);  // 添加worker_id参数
     void _setup_file_queue();
     int _detect_npu_cores();
+    void _set_cpu_affinity(int cpu_core_id);  // 设置CPU亲和性
+    void _set_thread_priority(int priority);  // 设置线程优先级
 };

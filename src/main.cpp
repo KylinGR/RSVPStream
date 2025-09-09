@@ -4,12 +4,66 @@
 #include <chrono>
 #include <filesystem>
 
-int main() {
+void print_usage(const char* program_name) {
+    std::cout << "Usage: " << program_name << " <model_order_path> <rknn_model_path> <data_directory>" << std::endl;
+    std::cout << "  model_order_path: Path to the model order .npy file" << std::endl;
+    std::cout << "  rknn_model_path:  Path to the RKNN model .rknn file" << std::endl;
+    std::cout << "  data_directory:   Path to the directory containing EEG data files" << std::endl;
+}
+
+bool file_exists(const std::string& path) {
+    namespace fs = std::filesystem;
+    return fs::exists(path) && fs::is_regular_file(path);
+}
+
+bool directory_exists(const std::string& path) {
+    namespace fs = std::filesystem;
+    return fs::exists(path) && fs::is_directory(path);
+}
+
+int count_files_in_directory(const std::string& path) {
+    namespace fs = std::filesystem;
+    int count = 0;
+    for (const auto& entry : fs::directory_iterator(path)) {
+        if (entry.is_regular_file()) {
+            count++;
+        }
+    }
+    return count;
+}
+
+int main(int argc, char* argv[]) {
     try {
+        if (argc != 4) {
+            std::cerr << "Error: Invalid number of arguments." << std::endl;
+            print_usage(argv[0]);
+            return 1;
+        }
+        
+        std::string model_order_path = argv[1];
+        std::string rknn_model_path = argv[2];
+        std::string data_directory = argv[3];
+        
+        // 检查文件和目录是否存在
+        if (!file_exists(model_order_path)) {
+            std::cerr << "Error: Model order file does not exist: " << model_order_path << std::endl;
+            return 1;
+        }
+        
+        if (!file_exists(rknn_model_path)) {
+            std::cerr << "Error: RKNN model file does not exist: " << rknn_model_path << std::endl;
+            return 1;
+        }
+        
+        if (!directory_exists(data_directory)) {
+            std::cerr << "Error: Data directory does not exist or is not a directory: " << data_directory << std::endl;
+            return 1;
+        }
+        
         // 配置参数
         ModelConfig model_config = {
-            .model_order_path = "/home/hzhy/workspace/csk/RSVPStream/data/model/model_order.npy",
-            .rknn_model_path = "/home/hzhy/workspace/csk/RSVPStream/data/model/optimized_model_v3_1.rknn",
+            .model_order_path = model_order_path,
+            .rknn_model_path = rknn_model_path,
             .win_len = 6,
             .chan_xlen = 3,
             .chan_ylen = 3,
@@ -26,15 +80,8 @@ int main() {
             .threshold = 0.5
         };
         
-        std::string data_directory = "/home/hzhy/workspace/csk/RSVPStream/data/egg_data";
-        
         // 统计文件数量
-        int file_count = 0;
-        for (auto& entry : std::filesystem::directory_iterator(data_directory)) {
-            if (entry.is_regular_file()) {
-                file_count++;
-            }
-        }
+        int file_count = count_files_in_directory(data_directory);
         std::cout << "Total files to process: " << file_count << std::endl;
         
         // 创建异步管道

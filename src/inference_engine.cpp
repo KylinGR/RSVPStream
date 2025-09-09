@@ -3,8 +3,8 @@
 #include <iostream>
 #include <cstring>
 
-InferenceEngine::InferenceEngine(const std::string& rknn_model_path)
-    : rknn_model_path_(rknn_model_path) {
+InferenceEngine::InferenceEngine(const std::string& rknn_model_path, int npu_core_id)
+    : rknn_model_path_(rknn_model_path), npu_core_id_(npu_core_id) {
 }
 
 InferenceEngine::~InferenceEngine() {
@@ -34,6 +34,34 @@ bool InferenceEngine::_initialize_model() {
     if (ret != RKNN_SUCC) {
         std::cerr << "rknn_init failed: " << ret << std::endl;
         return false;
+    }
+
+    // 设置NPU核心绑定
+    if (npu_core_id_ >= 0) {
+        rknn_core_mask core_mask;
+        switch (npu_core_id_) {
+            case 0:
+                core_mask = RKNN_NPU_CORE_0;
+                break;
+            case 1:
+                core_mask = RKNN_NPU_CORE_1;
+                break;
+            case 2:
+                core_mask = RKNN_NPU_CORE_2;
+                break;
+            default:
+                core_mask = RKNN_NPU_CORE_AUTO;
+                break;
+        }
+        
+        ret = rknn_set_core_mask(ctx_, core_mask);
+        if (ret != RKNN_SUCC) {
+            std::cerr << "Warning: rknn_set_core_mask failed for core " << npu_core_id_ 
+                      << ", error: " << ret << std::endl;
+            // 不要返回失败，继续使用自动模式
+        } else {
+            std::cout << "Successfully bound inference engine to NPU core " << npu_core_id_ << std::endl;
+        }
     }
 
     // 查询IO信息

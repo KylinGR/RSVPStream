@@ -41,5 +41,5 @@ add_executable(rsvp_rknn_async
     src/utils.cpp
 )
 
-target_link_libraries(rsvp_rknn_async ${LINK_LIBS} cnpy pthread)
+target_link_libraries(rsvp_rknn_async ${LINK_LIBS} cnpy pthread stdc++fs)
 

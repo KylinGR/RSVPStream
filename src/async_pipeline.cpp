@@ -4,6 +4,8 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <pthread.h>
+#include <sched.h>
 
 AsyncPipeline::AsyncPipeline(const ModelConfig& config,
                            const EvaluationConfig& eval_config,
@@ -33,7 +35,7 @@ void AsyncPipeline::initialize() {
     
     inference_engines_.reserve(num_npu_cores);
     for (int i = 0; i < num_npu_cores; ++i) {
-        auto engine = std::make_unique<InferenceEngine>(config_.rknn_model_path);
+        auto engine = std::make_unique<InferenceEngine>(config_.rknn_model_path, i);
         engine->initialize();
         inference_engines_.push_back(std::move(engine));
         std::cout << "Initialized inference engine " << (i + 1) << " for NPU core " << i << std::endl;
@@ -51,10 +53,11 @@ std::tuple<float, float, float, float, float> AsyncPipeline::run_evaluation() {
     // 设置文件队列
     _setup_file_queue();
     
-    // 启动预处理线程（可以根据CPU核数调整）
+    // 启动预处理线程（使用A55小核，适合CPU密集型预处理任务）
     int num_preprocess_threads = std::max(1, static_cast<int>(std::thread::hardware_concurrency() / 2));
+    std::cout << "Starting " << num_preprocess_threads << " preprocessing threads..." << std::endl;
     for (int i = 0; i < num_preprocess_threads; ++i) {
-        preprocess_threads_.emplace_back(&AsyncPipeline::_preprocess_worker, this);
+        preprocess_threads_.emplace_back(&AsyncPipeline::_preprocess_worker, this, i);
     }
     
     // 启动推理线程（使用检测到的NPU核心数量）
@@ -96,8 +99,14 @@ std::tuple<float, float, float, float, float> AsyncPipeline::run_evaluation() {
     return evaluator_->evaluate(results);
 }
 
-void AsyncPipeline::_preprocess_worker() {
+void AsyncPipeline::_preprocess_worker(int worker_id) {
+    // 绑定到A55小核 (CPU 0-3)，适合CPU密集型预处理任务
+    int cpu_core = worker_id % 4;  // 使用CPU 0-3
+    _set_cpu_affinity(cpu_core);
+    
     std::string file_path;
+    
+    std::cout << "Preprocess worker " << worker_id << " started on CPU " << cpu_core << std::endl;
     
     while (!stop_preprocessing_) {
         if (file_queue_.try_pop(file_path)) {
@@ -119,12 +128,21 @@ void AsyncPipeline::_preprocess_worker() {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
+    
+    std::cout << "Preprocess worker " << worker_id << " finished" << std::endl;
 }
 
 void AsyncPipeline::_inference_worker(int worker_id) {
+    // 绑定到A76大核 (CPU 4-7)，适合推理任务
+    int cpu_core = 4 + (worker_id % 4);  // 使用CPU 4-7
+    _set_cpu_affinity(cpu_core);
+    
+    // 为推理线程设置较高优先级
+    // _set_thread_priority(10);  // 可选：设置更高优先级
+    
     ProcessedData data;
     
-    std::cout << "Inference worker " << worker_id << " started" << std::endl;
+    std::cout << "Inference worker " << worker_id << " started on CPU " << cpu_core << std::endl;
     
     while (!stop_inference_) {
         if (processed_queue_.wait_and_pop(data)) {
@@ -238,4 +256,38 @@ int AsyncPipeline::_detect_npu_cores() {
     std::cout << "You can manually set the number of cores if needed" << std::endl;
     
     return 1;  // 默认使用1个核心
+}
+
+void AsyncPipeline::_set_cpu_affinity(int cpu_core_id) {
+    if (cpu_core_id < 0 || cpu_core_id >= 8) {
+        std::cerr << "Warning: Invalid CPU core ID " << cpu_core_id << std::endl;
+        return;
+    }
+    
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(cpu_core_id, &cpuset);
+    
+    pthread_t current_thread = pthread_self();
+    int result = pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
+    
+    if (result == 0) {
+        std::cout << "Thread bound to CPU core " << cpu_core_id << std::endl;
+    } else {
+        std::cerr << "Warning: Failed to set CPU affinity to core " << cpu_core_id 
+                  << ", error: " << result << std::endl;
+    }
+}
+
+void AsyncPipeline::_set_thread_priority(int priority) {
+    struct sched_param param;
+    param.sched_priority = priority;
+    
+    int result = pthread_setschedparam(pthread_self(), SCHED_FIFO, &param);
+    if (result == 0) {
+        std::cout << "Thread priority set to " << priority << std::endl;
+    } else {
+        std::cerr << "Warning: Failed to set thread priority to " << priority 
+                  << ", error: " << result << std::endl;
+    }
 }
