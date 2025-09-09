@@ -3,12 +3,11 @@
 #include <iomanip>
 
 int main() {
-    std::string model_path = "../model.npz"; //模型参数
-    std::string rknn_model_path = "../rknn_model/optimized_model_v3_1.rknn";
-    // std::string rknn_model_path = "/userdata/rsvp/rknn_model/ensemble_with_norm.rknn";
-    XGBDIM xgb(1, model_path, rknn_model_path, 50, 6, 3, 3, 3, 3, 299, 0.3);
+    std::string model_path = "../model.npz"; //model_order
+    std::string data_dir = "/home/hzhy/csk/RSVPStream/data/egg_data";
+    XGBDIM xgb(1, model_path, 50, 6, 3, 3, 3, 3, 299, 0.3);
     std::cout << "Starting program..." << std::endl;
-    auto [ba, acc, tpr, fpr, auc] = xgb.test();
+    auto [ba, acc, tpr, fpr, auc] = xgb.test(data_dir);
     std::cout << std::setprecision(4) << std::fixed << "BA: " << ba << ", ACC: " << acc << ", TPR: " << tpr << ", FPR: " << fpr << ", AUC: " << auc << std::endl;
 
     return 0;

@@ -7,14 +7,12 @@
 #include <algorithm>
 #include "xgbdim.h"
 #include "utils.h"
-#include "ensemble_model.h"
 #include "fpga_runner.h"
 
-XGBDIM::XGBDIM( int sub_idx, const std::string& model_path, const std::string& rknn_model_path,
+XGBDIM::XGBDIM( int sub_idx, const std::string& model_path,
                int n_cutpoint, int win_len, int chan_xlen, int chan_ylen, int step_x, int step_y,
                int max_N_model, float gstf_weight)
-    : sub_idx(sub_idx), model_path(model_path), n_cutpoint(n_cutpoint), rknn_model_path(rknn_model_path),
-      win_len(win_len), chan_xlen(chan_xlen), chan_ylen(chan_ylen), step_x(step_x), step_y(step_y),
+    : sub_idx(sub_idx), model_path(model_path), n_cutpoint(n_cutpoint), win_len(win_len), chan_xlen(chan_xlen), chan_ylen(chan_ylen), step_x(step_x), step_y(step_y),
       max_N_model(max_N_model), gstf_weight(gstf_weight) {
     channel_loc = {{1, 2, 3, 4, 5, 6, 7, 8, 9},
                    {10, 11, 12, 13, 14, 15, 16, 17, 18},
@@ -174,18 +172,13 @@ std::vector<std::vector<float>> XGBDIM::get_3D_cuboids(
 //     return output;
 // }
 
-
-
 void XGBDIM::load_model() {
     Model_order = load_npz_array_int(model_path, "model_order");
 }
-
-std::tuple<float, float, float, float, float> XGBDIM::test() {
-    load_model();
+std::tuple<float, float, float, float, float> XGBDIM::test(std::string data_dir) {
     get_3Dconv();
     FPGAProcessor processor;
 
-    std::string data_dir = "../../extracted_data_all/";
     std::vector<std::string> file_list;
     for (auto &entry : std::filesystem::directory_iterator(data_dir)) {
         if (entry.is_regular_file()) {

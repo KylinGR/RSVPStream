@@ -5,16 +5,15 @@
 
 class XGBDIM {
 public:
-    XGBDIM(int sub_idx, const std::string& model_path, const std::string& rknn_model_path,
+    XGBDIM(int sub_idx, const std::string& model_path,
            int n_cutpoint, int win_len, int chan_xlen, int chan_ylen, int step_x, int step_y,
            int max_N_model, float gstf_weight);
     void get_3Dconv();
     std::tuple<std::vector<std::vector<float>>, std::vector<std::vector<float>>> get_data(std::string data_src);
-    std::tuple<float, float, float, float, float> test();
+    std::tuple<float, float, float, float, float> test(std::string data_dir);
 
 private:
     std::string model_path;
-    std::string rknn_model_path;
     int sub_idx;
     int win_len;
     int chan_xlen;
@@ -48,5 +47,4 @@ private:
     std::vector<std::vector<float>> read_data(std::string data_src); 
     std::vector<std::vector<float>> get_3D_cuboids(const std::vector<std::vector<float>>& data);
     void preprocess(std::vector<std::vector<float>>& data);
-    std::vector<float> rknn_runner(const std::vector<std::vector<float>>& x_local, const std::vector<std::vector<float>>& x_global, const std::string& rknn_model_path);
 };
