@@ -59,18 +59,6 @@ float FPGAProcessor::fpga_runner(const std::vector<std::vector<float>>& x_local_
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
     std::cout << "Quantize cost " << duration << " ms" << std::endl;
 
-    // auto start_time = std::chrono::high_resolution_clock::now();
-    // auto [x_local, local_scale] = dynamic_quantize_tensor_T(x_local_data);
-    // auto quantize_x_local_end = std::chrono::high_resolution_clock::now();
-    // auto quantize_x_local_duration = std::chrono::duration_cast<std::chrono::milliseconds>(quantize_x_local_end - start_time).count();
-    // std::cout << "Quantize local cost " << quantize_x_local_duration << " ms" << std::endl;
-
-    // auto quantize_x_global_start = std::chrono::high_resolution_clock::now();
-    // auto [x_global, global_scale] = dynamic_quantize_tensor_T(x_global_data);
-    // auto quantize_x_global_end = std::chrono::high_resolution_clock::now();
-    // auto quantize_x_global_duration = std::chrono::duration_cast<std::chrono::milliseconds>(quantize_x_global_end - quantize_x_global_start).count();
-    // std::cout << "Quantize global cost " << quantize_x_global_duration << " ms" << std::endl;
-
     bErr = false;
     RegWr(ADR_WR_X_LOCAL_SCALE, floatToHex(local_scale));
     RegWr(ADR_XGLOBAL_SCALE, floatToHex(global_scale));

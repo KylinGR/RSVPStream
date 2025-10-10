@@ -242,14 +242,14 @@ std::pair<std::vector<int16_t>, float> dynamic_quantize_tensor_T_flatten_neon(
     i = 0;
     for (; i + 4 <= data_size; i += 4) {
         float32x4_t data = vld1q_f32(&tensor_data[i]);
-        float32x4_t scaled = vmulq_f32(data, scale_vec);
-        float32x4_t rounded = vrndnq_f32(scaled);
-        rounded = vmaxq_f32(rounded, q_min_f);
-        rounded = vminq_f32(rounded, q_max_f);
+        float32x4_t scaled = vmulq_f32(data, scale_vec);    // 缩放
+        float32x4_t rounded = vrndnq_f32(scaled);           // 四舍五入
+        rounded = vmaxq_f32(rounded, q_min_f);              // 下限截断
+        rounded = vminq_f32(rounded, q_max_f);              // 上限截断
         
-        int32x4_t i32_vec = vcvtq_s32_f32(rounded);
-        int16x4_t i16_vec = vmovn_s32(i32_vec);
-        vst1_s16(&single_quantized[i], i16_vec);
+        int32x4_t i32_vec = vcvtq_s32_f32(rounded);         // 转int32
+        int16x4_t i16_vec = vmovn_s32(i32_vec);             // 窄化成int16
+        vst1_s16(&single_quantized[i], i16_vec);            // 写回结果
     }
     
     for (; i < data_size; ++i) {

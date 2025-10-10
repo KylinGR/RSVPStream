@@ -125,51 +125,6 @@ std::vector<std::vector<float>> XGBDIM::get_3D_cuboids(
     return Tset;
 }
 
-//X_test和X_test_global是模型输入，对应原python文件中的两个同名三维向量
-// std::vector<float> XGBDIM::rknn_runner(const std::vector<std::vector<float>>& x_local, const std::vector<std::vector<float>>& x_global, const std::string& rknn_model_path) {
-//     // 初始化模型
-//     ENSEMBLEModel model(rknn_model_path);
-
-//     // 准备输入数据
-//     const auto& input1_dims = model.get_input1_dims();
-//     const auto& input2_dims = model.get_input2_dims();
-//     // std::cout << "input processed !" << std::endl;
-//     std::vector<float> input1(input1_dims.batch * input1_dims.height * input1_dims.width * input1_dims.channel);
-//     std::vector<float> input2(input2_dims.batch * input2_dims.height * input2_dims.width * input2_dims.channel);
-
-
-//     size_t index = 0;
-//     for (size_t k = 0; k < x_local[0].size(); ++k) { // 遍历最内层
-//         for (const auto& outer : x_local) { // 遍历最外层
-//             input1[index++] = outer[k];
-//             }
-//         }
-
-//     index = 0;
-//     for (size_t k = 0; k < x_global[0].size(); ++k) { // 遍历最内层
-//         for (const auto& outer : x_global) { // 遍历最外层
-//             input2[index++] = outer[k];
-//             }
-//         }
-
-//     // 执行推理
-//     // auto start = std::chrono::high_resolution_clock::now();
-//     if (!model.infer(input1.data(), input2.data())) {
-//         throw std::runtime_error("Inference failed");
-//     }
-//     // auto end = std::chrono::high_resolution_clock::now();
-
-//     // // 输出推理时间
-//     // std::cout << "Inference time: " 
-//     //             << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
-//     //             << " ms\n";
-
-//     // 获取输出结果
-//     const auto& output = model.get_output();
-//     // std::cout << "output : " << output[1156]<<' '<< output[1155] <<' '<< output[1154] << std::endl;
-//     return output;
-// }
-
 void XGBDIM::load_model() {
     Model_order = load_npz_array_int(model_path, "model_order");
 }
