@@ -76,10 +76,8 @@ std::vector<std::vector<float>> XGBDIM::read_data(std::string data_src) {
 std::tuple<std::vector<std::vector<float>>, std::vector<std::vector<float>>> XGBDIM::get_data(std::string data_src) {
     auto x_global = read_data(data_src);
     preprocess(x_global);
-
     auto x_local = get_3D_cuboids(x_global);
-
-return {x_local, x_global};
+    return {x_local, x_global};
 }
 
 void XGBDIM::preprocess(std::vector<std::vector<float>>& data) {
@@ -189,30 +187,20 @@ std::tuple<float, float, float, float, float> XGBDIM::test(std::string data_dir)
     std::sort(file_list.begin(), file_list.end()); // 对文件名进行排序
     std::vector<float> s_all;
     for (auto file_path : file_list) {
-        // auto start = std::chrono::high_resolution_clock::now();
+        auto loop_start = std::chrono::high_resolution_clock::now();
         auto [x_local, x_global] = get_data(file_path);
+        auto get_data_end = std::chrono::high_resolution_clock::now();
+        auto get_data_duration = std::chrono::duration_cast<std::chrono::milliseconds>(get_data_end - loop_start).count();
+        std::cout << "Get data cost " << get_data_duration << " ms" << std::endl;
         
-        // int N_local_model = 299;//299
-
-        // // 根据 Model_order 对 x_local 进行索引操作
-        // for (auto& row : x_local) {
-        //     std::vector<float> new_row;
-        //     for (int k = 0; k < N_local_model; ++k) {
-        //         new_row.push_back(row[Model_order[k]]);
-        //     }
-        //     // 用新的行替换原来的行
-        //     row = new_row;
-        // }
-
-
-        // auto end = std::chrono::high_resolution_clock::now();
-        // std::cout << static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()) / 1000 << " seconds taken for reordering." << std::endl;
-
         float s_mean = processor.fpga_runner(x_local, x_global);
         s_all.push_back(s_mean); 
+        auto loop_end = std::chrono::high_resolution_clock::now();
+        auto loop_duration = std::chrono::duration_cast<std::chrono::milliseconds>(loop_end - loop_start).count();
         // 输出调试信息
         std::cout << "Output Val: [" << s_mean << "]" << std::endl;
-
+        std::cout << "FPGA loop cost " << loop_duration << " ms" << std::endl;
+        std::cout << std::endl;
     }
     int n_positive = 61;//61
     int n_negative = 1096;//1096

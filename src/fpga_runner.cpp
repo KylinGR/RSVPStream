@@ -46,11 +46,30 @@ FPGAProcessor::FPGAProcessor() : s_all(0), s_data(0), bErr(false) {
 
 float FPGAProcessor::fpga_runner(const std::vector<std::vector<float>>& x_local_data, const std::vector<std::vector<float>>& x_global_data) {
 
-    auto [x_local, local_scale] = dynamic_quantize_tensor_T(x_local_data);
-    auto [x_global, global_scale] = dynamic_quantize_tensor_T(x_global_data);
+    size_t local_rows = x_local_data.size();
+    size_t local_cols = x_local_data[0].size();
+    size_t global_rows = x_global_data.size();
+    size_t global_cols = x_global_data[0].size();
+    auto x_local_data_flatten = flatten_2d_vector(x_local_data);
+    auto x_global_data_flatten = flatten_2d_vector(x_global_data);
+    auto start = std::chrono::high_resolution_clock::now();
+    auto [x_local, local_scale] = dynamic_quantize_tensor_T_flatten_neon(x_local_data_flatten, local_rows, local_cols);
+    auto [x_global, global_scale] = dynamic_quantize_tensor_T_flatten_neon(x_global_data_flatten, global_rows, global_cols);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    std::cout << "Quantize cost " << duration << " ms" << std::endl;
 
-    // std::cout << "Local data0: " << x_local[0] << "Local data1: " << x_local[1] << " scale: " << local_scale << std::endl;
-    // std::cout << "global data0: " << x_global[0] << "global data1: " << x_global[1] << " scale: " << global_scale << std::endl;
+    // auto start_time = std::chrono::high_resolution_clock::now();
+    // auto [x_local, local_scale] = dynamic_quantize_tensor_T(x_local_data);
+    // auto quantize_x_local_end = std::chrono::high_resolution_clock::now();
+    // auto quantize_x_local_duration = std::chrono::duration_cast<std::chrono::milliseconds>(quantize_x_local_end - start_time).count();
+    // std::cout << "Quantize local cost " << quantize_x_local_duration << " ms" << std::endl;
+
+    // auto quantize_x_global_start = std::chrono::high_resolution_clock::now();
+    // auto [x_global, global_scale] = dynamic_quantize_tensor_T(x_global_data);
+    // auto quantize_x_global_end = std::chrono::high_resolution_clock::now();
+    // auto quantize_x_global_duration = std::chrono::duration_cast<std::chrono::milliseconds>(quantize_x_global_end - quantize_x_global_start).count();
+    // std::cout << "Quantize global cost " << quantize_x_global_duration << " ms" << std::endl;
 
     bErr = false;
     RegWr(ADR_WR_X_LOCAL_SCALE, floatToHex(local_scale));
@@ -61,9 +80,9 @@ float FPGAProcessor::fpga_runner(const std::vector<std::vector<float>>& x_local_
 
     Vec2DDR(x_global, XGLOB_ADR);
     Vec2DDR(x_local,  XLOCAL_ADR);
-    
+
     Start();
-    DELAY_MS(10);
+    DELAY_MS(1);
 
     for (int i = 0; i < 17; i++) {
         dat = RegRd((0x20 + i) << 2);

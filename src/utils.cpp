@@ -6,155 +6,7 @@
 #include <cmath>    // 包含 std::round
 #include <utility>  // 包含 std::pair
 #include <algorithm> // 包含 std::clamp
-
-//动态量化函数
-std::pair<std::vector<std::vector<int16_t>>, float> dynamic_quantize_tensor(const std::vector<std::vector<float>>& tensor) {
-    constexpr int16_t Q_MIN = std::numeric_limits<int16_t>::min();  // -32768
-    constexpr int16_t Q_MAX = std::numeric_limits<int16_t>::max();  // 32767
-    constexpr float MIN_CLAMP = 1e-8f;  // 防止除以0
-    
-    if (tensor.empty()) {
-        return {std::vector<std::vector<int16_t>>(), 0.0f};
-    }
-    
-    // 找到所有元素中绝对值的最大值
-    float max_val = 0.0f;
-    for (const auto& row : tensor) {
-        for (const float& val : row) {
-            max_val = std::max(max_val, std::abs(val));
-        }
-    }
-    
-    // 计算缩放因子，防止除以0
-    float scale = static_cast<float>(Q_MAX) / std::max(max_val, MIN_CLAMP);
-    
-    // 量化数据
-    std::vector<std::vector<int16_t>> quantized;
-    quantized.reserve(tensor.size());
-    
-    for (const auto& row : tensor) {
-        std::vector<int16_t> quantized_row;
-        quantized_row.reserve(row.size());
-        
-        for (const float& val : row) {
-            float scaled = val * scale;
-            int32_t rounded = static_cast<int32_t>(std::round(scaled));
-            int16_t clamped = static_cast<int16_t>(
-                std::clamp(rounded, static_cast<int32_t>(Q_MIN), static_cast<int32_t>(Q_MAX))
-            );
-            quantized_row.push_back(clamped);
-        }
-        
-        quantized.push_back(std::move(quantized_row));
-    }
-    
-    return {quantized, scale};
-}
-
-// //动态量化函数(返回置换后的矩阵)
-// std::pair<std::vector<std::vector<int16_t>>, float> dynamic_quantize_tensor_T(const std::vector<std::vector<float>>& tensor) {
-//     constexpr int16_t Q_MIN = std::numeric_limits<int16_t>::min();  // -32768
-//     constexpr int16_t Q_MAX = std::numeric_limits<int16_t>::max();  // 32767
-//     constexpr float MIN_CLAMP = 1e-8f;  // 防止除以0
-    
-//     if (tensor.empty()) {
-//         return {std::vector<std::vector<int16_t>>(), 0.0f};
-//     }
-    
-//     // 找到所有元素中绝对值的最大值
-//     float max_val = 0.0f;
-//     for (const auto& row : tensor) {
-//         for (const float& val : row) {
-//             max_val = std::max(max_val, std::abs(val));
-//         }
-//     }
-    
-//     // 计算缩放因子，防止除以0
-//     float scale = static_cast<float>(Q_MAX) / std::max(max_val, MIN_CLAMP);
-    
-//     // 量化数据并转置维度
-//     if (tensor.empty() || tensor[0].empty()) {
-//         return {std::vector<std::vector<int16_t>>(), scale};
-//     }
-    
-//     size_t rows = tensor.size();      // 原始行数
-//     size_t cols = tensor[0].size();   // 原始列数
-    
-//     // 创建转置后的量化矩阵 (cols x rows)
-//     std::vector<std::vector<int16_t>> quantized(cols, std::vector<int16_t>(rows));
-    
-//     for (size_t i = 0; i < rows; ++i) {
-//         for (size_t j = 0; j < cols; ++j) {
-//             float scaled = tensor[i][j] * scale;
-//             int32_t rounded = static_cast<int32_t>(std::round(scaled));
-//             int16_t clamped = static_cast<int16_t>(
-//                 std::clamp(rounded, static_cast<int32_t>(Q_MIN), static_cast<int32_t>(Q_MAX))
-//             );
-//             quantized[j][i] = clamped;  // 转置：原来的[i][j]变成[j][i]
-//         }
-//     }
-    
-//     return {quantized, scale};
-// }
-
-std::pair<std::vector<int16_t>, float> dynamic_quantize_tensor_T(const std::vector<std::vector<float>>& tensor) {
-    constexpr int16_t Q_MIN = std::numeric_limits<int16_t>::min();  // -32768
-    constexpr int16_t Q_MAX = std::numeric_limits<int16_t>::max();  // 32767
-    constexpr float MIN_CLAMP = 1e-8f;  // 防止除以0
-    
-    if (tensor.empty() || tensor[0].empty()) {
-        return {std::vector<int16_t>(), 0.0f};
-    }
-
-    size_t rows = tensor.size();      // 原始 54
-    size_t cols = tensor[0].size();   // 原始 299
-
-    // 1. 找最大绝对值 (只遍历有效数据)
-    float max_val = 0.0f;
-    for (const auto& row : tensor) {
-        for (float val : row) {
-            float abs_val = std::abs(val);
-            if (abs_val > max_val) max_val = abs_val;
-        }
-    }
-
-    // 2. 计算 scale
-    float scale = static_cast<float>(Q_MAX) / std::max(max_val, MIN_CLAMP);
-
-    // 3. 计算维度
-    size_t padded_rows = (rows % 8 == 0) ? rows : (rows + (8 - rows % 8)); // 54 -> 56
-    size_t single_size = padded_rows * cols;  // 56 * 299
-    size_t total_size = single_size * 17;     // 17 * 56 * 299
-
-    // 4. 分配总空间 (17份)
-    std::vector<int16_t> quantized(total_size, 0);
-
-    // 5. 先量化有效数据，直接写入17份
-    for (size_t i = 0; i < rows; ++i) {        // 原始行：54
-        for (size_t j = 0; j < cols; ++j) {    // 原始列：299
-            // 量化计算
-            float scaled = tensor[i][j] * scale;
-            int32_t rounded = static_cast<int32_t>(std::round(scaled));
-            int16_t clamped = static_cast<int16_t>(
-                std::clamp(rounded, static_cast<int32_t>(Q_MIN), static_cast<int32_t>(Q_MAX))
-            );
-            
-            // 计算在单份中的位置: [i][j] -> i * cols + j
-            size_t pos_in_single = i * cols + j;
-            
-            // 同时写入17份
-            for (int k = 0; k < 17; ++k) {
-                quantized[k * single_size + pos_in_single] = clamped;
-            }
-        }
-    }
-
-    // 6. padding部分已经通过初始化为0处理完毕
-    // 维度变化: 54*299 -> 56*299 -> 17*56*299 -> flatten
-
-    return {std::move(quantized), scale};
-}
-
+#include <cstring>
 
 std::vector<int64_t> load_npz_array_int(const std::string& file_path, const std::string& array_name) {
     cnpy::npz_t npz = cnpy::npz_load(file_path);
@@ -249,4 +101,185 @@ std::vector<std::vector<float>> load_npz_2d_array_float(const std::string& file_
         throw std::runtime_error("Unsupported data type for array " + array_name);
     }
     return result;
+}
+
+// 将二维浮点向量展平为一维浮点向量
+std::vector<float> flatten_2d_vector(const std::vector<std::vector<float>>& tensor) {
+    if (tensor.empty() || tensor[0].empty()) {
+        return std::vector<float>();
+    }
+    
+    size_t rows = tensor.size();
+    size_t cols = tensor[0].size();
+    std::vector<float> flat_data(rows * cols);
+    
+    // 方法1: 逐行复制（推荐，最快）
+    for (size_t i = 0; i < rows; ++i) {
+        std::memcpy(&flat_data[i * cols], 
+                    tensor[i].data(), 
+                    cols * sizeof(float));
+    }
+    
+    return flat_data;
+}
+
+// ===== 纯标量版本（无SIMD，任何平台都能用） =====
+std::pair<std::vector<int16_t>, float> dynamic_quantize_tensor_T_flatten(
+    const std::vector<float>& tensor_data, size_t rows, size_t cols) {
+    
+    constexpr int16_t Q_MIN = std::numeric_limits<int16_t>::min();
+    constexpr int16_t Q_MAX = std::numeric_limits<int16_t>::max();
+    constexpr float MIN_CLAMP = 1e-8f;
+    
+    // if (!tensor_data || rows == 0 || cols == 0) {
+    //     return {std::vector<int16_t>(), 0.0f};
+    // }
+    
+    size_t data_size = rows * cols;
+    
+    // 1. 找最大绝对值（标量版本）
+    float max_val = 0.0f;
+    for (size_t i = 0; i < data_size; ++i) {
+        float abs_val = std::abs(tensor_data[i]);
+        if (abs_val > max_val) {
+            max_val = abs_val;
+        }
+    }
+    
+    // 2. 计算scale
+    float scale = static_cast<float>(Q_MAX) / std::max(max_val, MIN_CLAMP);
+    
+    // 3. 计算填充后的维度
+    size_t padded_rows = (rows + 7) & ~7;  // 向上对齐到8的倍数
+    size_t single_size = padded_rows * cols;
+    
+    // 4. 量化到临时数组（只量化一次）
+    std::vector<int16_t> single_quantized(single_size, 0);
+    
+    for (size_t i = 0; i < data_size; ++i) {
+        float scaled = tensor_data[i] * scale;
+        int32_t rounded = static_cast<int32_t>(std::round(scaled));
+        single_quantized[i] = static_cast<int16_t>(
+            std::clamp(rounded, 
+                      static_cast<int32_t>(Q_MIN), 
+                      static_cast<int32_t>(Q_MAX))
+        );
+    }
+    // padding区域已经通过初始化为0处理
+    
+    // 5. 复制17份（使用memcpy批量复制）
+    size_t total_size = single_size * 17;
+    std::vector<int16_t> quantized(total_size);
+    
+    for (int k = 0; k < 17; ++k) {
+        std::memcpy(&quantized[k * single_size], 
+                    single_quantized.data(), 
+                    single_size * sizeof(int16_t));
+    }
+    
+    return {std::move(quantized), scale};
+}
+
+// RK3588 支持 ARM NEON
+#ifdef __ARM_NEON
+#include <arm_neon.h>
+#endif
+// ===== NEON加速版本（仅在ARM平台使用） =====
+std::pair<std::vector<int16_t>, float> dynamic_quantize_tensor_T_flatten_neon(
+    const std::vector<float>& tensor_data, size_t rows, size_t cols) {
+    
+    constexpr int16_t Q_MIN = std::numeric_limits<int16_t>::min();
+    constexpr int16_t Q_MAX = std::numeric_limits<int16_t>::max();
+    constexpr float MIN_CLAMP = 1e-8f;
+    
+    // if (!tensor_data || rows == 0 || cols == 0) {
+    //     return {std::vector<int16_t>(), 0.0f};
+    // }
+    
+    size_t data_size = rows * cols;
+    float max_val = 0.0f;
+    
+#ifdef __ARM_NEON
+    float32x4_t max_vec = vdupq_n_f32(0.0f);
+    size_t i = 0;
+    
+    // NEON处理，一次4个
+    for (; i + 4 <= data_size; i += 4) {
+        float32x4_t data = vld1q_f32(&tensor_data[i]);
+        float32x4_t abs_data = vabsq_f32(data);
+        max_vec = vmaxq_f32(max_vec, abs_data);
+    }
+    
+    // 归约
+    float32x2_t max_pair = vmax_f32(vget_low_f32(max_vec), vget_high_f32(max_vec));
+    float32x2_t max_final = vpmax_f32(max_pair, max_pair);
+    float neon_max = vget_lane_f32(max_final, 0);
+    if (neon_max > max_val) max_val = neon_max;
+    
+    // 处理剩余
+    for (; i < data_size; ++i) {
+        float abs_val = std::abs(tensor_data[i]);
+        if (abs_val > max_val) max_val = abs_val;
+    }
+#else
+    for (size_t i = 0; i < data_size; ++i) {
+        float abs_val = std::abs(tensor_data[i]);
+        if (abs_val > max_val) max_val = abs_val;
+    }
+#endif
+    
+    float scale = static_cast<float>(Q_MAX) / std::max(max_val, MIN_CLAMP);
+    
+    size_t padded_rows = (rows + 7) & ~7;
+    size_t single_size = padded_rows * cols;
+    std::vector<int16_t> single_quantized(single_size, 0);
+    
+#ifdef __ARM_NEON
+    float32x4_t scale_vec = vdupq_n_f32(scale);
+    float32x4_t q_min_f = vdupq_n_f32(static_cast<float>(Q_MIN));
+    float32x4_t q_max_f = vdupq_n_f32(static_cast<float>(Q_MAX));
+    
+    i = 0;
+    for (; i + 4 <= data_size; i += 4) {
+        float32x4_t data = vld1q_f32(&tensor_data[i]);
+        float32x4_t scaled = vmulq_f32(data, scale_vec);
+        float32x4_t rounded = vrndnq_f32(scaled);
+        rounded = vmaxq_f32(rounded, q_min_f);
+        rounded = vminq_f32(rounded, q_max_f);
+        
+        int32x4_t i32_vec = vcvtq_s32_f32(rounded);
+        int16x4_t i16_vec = vmovn_s32(i32_vec);
+        vst1_s16(&single_quantized[i], i16_vec);
+    }
+    
+    for (; i < data_size; ++i) {
+        float scaled = tensor_data[i] * scale;
+        int32_t rounded = static_cast<int32_t>(std::round(scaled));
+        single_quantized[i] = static_cast<int16_t>(
+            std::clamp(rounded, static_cast<int32_t>(Q_MIN), 
+                      static_cast<int32_t>(Q_MAX))
+        );
+    }
+#else
+    for (size_t i = 0; i < data_size; ++i) {
+        float scaled = tensor_data[i] * scale;
+        int32_t rounded = static_cast<int32_t>(std::round(scaled));
+        single_quantized[i] = static_cast<int16_t>(
+            std::clamp(rounded, static_cast<int32_t>(Q_MIN), 
+                      static_cast<int32_t>(Q_MAX))
+        );
+    }
+#endif
+    
+    // 复制17份
+    size_t total_size = single_size * 17;
+    std::vector<int16_t> quantized(total_size);
+    
+    for (int k = 0; k < 17; ++k) {
+        std::memcpy(&quantized[k * single_size], 
+                    single_quantized.data(), 
+                    single_size * sizeof(int16_t));
+    }
+    
+    return {std::move(quantized), scale};
 }

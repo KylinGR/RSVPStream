@@ -155,7 +155,7 @@ void NetRegInit()
 void Start()
 {
     RegWr(ADR_ALG_START, 0x0);
-    DELAY_MS(10);
+    DELAY_MS(1);
     RegWr(ADR_ALG_START, 0x1);
 }
 
