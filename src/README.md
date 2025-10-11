@@ -48,7 +48,6 @@
 3. **编译工程**
 
   ```bash
-  cd /home/hzhy/csk/RSVPStream
   mkdir -p build
   cd build
   cmake ..
