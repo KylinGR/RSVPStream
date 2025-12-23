@@ -1,9 +1,10 @@
 #include "fpga_lib.h"
 
 // 全局变量定义
+std::vector<uint16_t> ram_coeff_b16;
 int verbose = 0;
-int fdC2H, fdH2C;
-int fdReg;
+int fdC2H = -1, fdH2C = -1;
+int fdReg = -1;
 char *allocated = NULL;
 uint8_t* map = NULL;
 float X_global_scale[100];
@@ -22,6 +23,37 @@ uint32_t floatToHex(float f) {
 
 float sigmoid(float x) {
     return 1.0f / (1.0f + std::exp(-x));
+}
+
+void load_datfile2coeff_b16(const std::string& strFilename,uint32_t reg_adr,uint16_t reg_len)
+{
+	std::string strFile;
+    uint64_t tot_size;
+	strFile  = "/home/hzhy/cpp_work/dat/"+strFilename;
+ 	printf("strFile =%s\n",strFile.c_str());
+    ram_coeff_b16.resize(reg_len); // ensure buffer is large enough for the read
+	file_base file(strFile,FILE_DIR::FIN,FILE_TYPE::BINARY);		
+    tot_size = file.readAll(reinterpret_cast<char*>(ram_coeff_b16.data()));
+    uint32_t elems = std::min<uint32_t>(reg_len, tot_size / sizeof(uint16_t));
+    for(uint32_t i=0;i<elems;i++)
+	{
+		RegWr(reg_adr+i*4,ram_coeff_b16[i]);
+	//	std::cout<<"ram_coeff["<<std::hex<<reg_adr+i*4<<"]="<<ram_coeff_b16[i]<<std::endl;
+	}
+    if (elems < reg_len) {
+        fprintf(stderr, "%s size %lu bytes is smaller than expected %u bytes, wrote %u elements.\n",
+                strFile.c_str(), tot_size, reg_len * (uint32_t)sizeof(uint16_t), elems);
+    }
+}
+
+
+void load_coeff()
+{
+	load_datfile2coeff_b16("ptrim.dat",ADR_XORDER_PTRIM_RAM_L,492*2);
+	load_datfile2coeff_b16("bglobal.dat",ADR_BG_RAM_L,12*2);//bglobal
+	load_datfile2coeff_b16("betaglobal.dat",ADR_BETA_RAM_L,17*2);	//betaglobal
+	load_datfile2coeff_b16("gstf_weight.dat",ADR_GST_RAM_L,12*2);//gsfweight
+	load_datfile2coeff_b16("lr_model.dat",ADR_LR_MODEL_RAM_L,2544*2);//lrmodel
 }
 
 ssize_t write_from_buffer(char *fname, int fd, char *buffer, uint64_t size, uint64_t base)
@@ -183,10 +215,16 @@ void LoadScale()
 int InitFPGA()
 {
     fdReg = open("/dev/xdma0_user", O_RDWR|O_SYNC);
+    if (fdReg < 0) {
+        printf("Open register node /dev/xdma0_user failed: %s.\n", strerror(errno));
+        return -1;
+    }
+
     map = (uint8_t*)mmap(NULL, 131072, PROT_READ | PROT_WRITE, MAP_SHARED, fdReg, 0x0);
     if (map == (void *)-1) {
         printf("Register Memory  mapped failed: %s.\n", strerror(errno));
         close(fdReg);
+        fdReg = -1;
         return -1;
     }
 

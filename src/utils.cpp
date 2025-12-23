@@ -106,20 +106,25 @@ std::vector<std::vector<float>> load_npz_2d_array_float(const std::string& file_
 // 将二维浮点向量展平为一维浮点向量
 std::vector<float> flatten_2d_vector(const std::vector<std::vector<float>>& tensor) {
     if (tensor.empty() || tensor[0].empty()) {
-        return std::vector<float>();
+        throw std::invalid_argument("flatten_2d_vector requires non-empty input");
     }
-    
-    size_t rows = tensor.size();
-    size_t cols = tensor[0].size();
+
+    const size_t rows = tensor.size();
+    const size_t cols = tensor[0].size();
+
+    for (size_t i = 1; i < rows; ++i) {
+        if (tensor[i].size() != cols) {
+            throw std::invalid_argument("flatten_2d_vector received jagged input");
+        }
+    }
+
     std::vector<float> flat_data(rows * cols);
-    
-    // 方法1: 逐行复制（推荐，最快）
+
+    // 逐行复制到连续缓冲区
     for (size_t i = 0; i < rows; ++i) {
-        std::memcpy(&flat_data[i * cols], 
-                    tensor[i].data(), 
-                    cols * sizeof(float));
+        std::memcpy(&flat_data[i * cols], tensor[i].data(), cols * sizeof(float));
     }
-    
+
     return flat_data;
 }
 
@@ -131,10 +136,10 @@ std::pair<std::vector<int16_t>, float> dynamic_quantize_tensor_T_flatten(
     constexpr int16_t Q_MAX = std::numeric_limits<int16_t>::max();
     constexpr float MIN_CLAMP = 1e-8f;
     
-    // if (!tensor_data || rows == 0 || cols == 0) {
-    //     return {std::vector<int16_t>(), 0.0f};
-    // }
-    
+    if (rows == 0 || cols == 0 || tensor_data.size() != rows * cols) {
+        throw std::invalid_argument("dynamic_quantize_tensor_T_flatten received invalid tensor shape");
+    }
+
     size_t data_size = rows * cols;
     
     // 1. 找最大绝对值（标量版本）
@@ -192,10 +197,10 @@ std::pair<std::vector<int16_t>, float> dynamic_quantize_tensor_T_flatten_neon(
     constexpr int16_t Q_MAX = std::numeric_limits<int16_t>::max();
     constexpr float MIN_CLAMP = 1e-8f;
     
-    // if (!tensor_data || rows == 0 || cols == 0) {
-    //     return {std::vector<int16_t>(), 0.0f};
-    // }
-    
+    if (rows == 0 || cols == 0 || tensor_data.size() != rows * cols) {
+        throw std::invalid_argument("dynamic_quantize_tensor_T_flatten_neon received invalid tensor shape");
+    }
+
     size_t data_size = rows * cols;
     float max_val = 0.0f;
     

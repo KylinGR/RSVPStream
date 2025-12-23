@@ -75,6 +75,21 @@ using namespace std;
 #define        ADR_TIM                            (0x31<<2)
 #define        ADR_HW_STATUS                      (0x80<<2) 
 
+#define        ADR_XORDER_PTRIM_RAM_L             (0x200<<2)
+#define        ADR_XORDER_PTRIM_RAM_H             (0x600<<2)
+ 
+#define        ADR_LR_MODEL_RAM_L                 (0x700<<2)
+#define        ADR_LR_MODEL_RAM_H                 (0x1b00<<2)
+ 
+#define        ADR_BETA_RAM_L                     (0x1c00<<2)
+#define        ADR_BETA_RAM_H                     (0x1d00<<2)
+ 					       
+#define        ADR_BG_RAM_L                       (0x1e00<<2)
+#define        ADR_BG_RAM_H                       (0x1f00<<2)
+ 
+#define        ADR_GST_RAM_L                      (0x2000<<2)
+#define        ADR_GST_RAM_H                      (0x2100<<2)
+
 // 延时宏定义
 #define DELAY_S(n) std::this_thread::sleep_for(std::chrono::seconds(n))
 #define DELAY_MS(n) std::this_thread::sleep_for(std::chrono::milliseconds(n))
@@ -114,6 +129,8 @@ void NetRegInit();
 void Start();
 void Reset();
 void LoadScale();
+void load_datfile2coeff_b16(const std::string& strFilename,uint32_t reg_adr,uint16_t reg_len);
+void load_coeff();
 
 // 初始化和清理函数
 int InitFPGA();

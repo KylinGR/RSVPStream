@@ -2,6 +2,11 @@
 #include "fpga_lib.h"
 #include "utils.h"
 
+#include <chrono>
+#include <cstdio>
+#include <stdexcept>
+#include <utility>
+
 FPGAProcessor::FPGAProcessor() : s_all(0), s_data(0), bErr(false) {
     std::cout << "Hello,World!" << __DATE__ << "," << __TIME__ << std::endl;
     
@@ -14,6 +19,7 @@ FPGAProcessor::FPGAProcessor() : s_all(0), s_data(0), bErr(false) {
         throw std::runtime_error("FPGA初始化失败");
     }
 
+    load_coeff();
     Reset();
     LoadGoldDat();
 
@@ -32,8 +38,8 @@ FPGAProcessor::FPGAProcessor() : s_all(0), s_data(0), bErr(false) {
 
     NetRegInit();
 
-    uint32_t dat = RegRd(0x84 << 2);
-    printf("Version=0x%x\n", dat);
+    int32_t dat = RegRd(0xc000);
+	printf("FPGA VERSION =0x%x\n",dat);
 
     dat = RegRd(ADR_ALG_START);
     printf("ADR_ALG_START=%x\n", dat);
@@ -46,10 +52,22 @@ FPGAProcessor::FPGAProcessor() : s_all(0), s_data(0), bErr(false) {
 
 float FPGAProcessor::fpga_runner(const std::vector<std::vector<float>>& x_local_data, const std::vector<std::vector<float>>& x_global_data) {
 
-    size_t local_rows = x_local_data.size();
-    size_t local_cols = x_local_data[0].size();
-    size_t global_rows = x_global_data.size();
-    size_t global_cols = x_global_data[0].size();
+    auto validate_matrix = [](const auto& mat, const char* name) -> std::pair<size_t, size_t> {
+        if (mat.empty() || mat[0].empty()) {
+            throw std::invalid_argument(std::string(name) + " is empty");
+        }
+        const size_t cols = mat[0].size();
+        for (const auto& row : mat) {
+            if (row.size() != cols) {
+                throw std::invalid_argument(std::string(name) + " has inconsistent row sizes");
+            }
+        }
+        return {mat.size(), cols};
+    };
+
+    auto [local_rows, local_cols] = validate_matrix(x_local_data, "x_local_data");
+    auto [global_rows, global_cols] = validate_matrix(x_global_data, "x_global_data");
+
     auto x_local_data_flatten = flatten_2d_vector(x_local_data);
     auto x_global_data_flatten = flatten_2d_vector(x_global_data);
     auto start = std::chrono::high_resolution_clock::now();
