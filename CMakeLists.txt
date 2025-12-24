@@ -45,15 +45,19 @@ include_directories(
 # 链接库路径
 link_directories(${CMAKE_SOURCE_DIR}/lib)
 
-# 链接的库
-set(LINK_LIBS rknnrt)
-
 #所有cpp文件
 file(GLOB SRC_FILES src/*.cpp)
 
+# 移除仅用于数据推送的可执行文件源码
+list(REMOVE_ITEM SRC_FILES ${CMAKE_SOURCE_DIR}/src/eeg_sender.cpp)
+
 # 可执行文件输出名称
-add_executable(rsvp_rknn ${SRC_FILES})
+add_executable(rsvp_fpga ${SRC_FILES})
+
+# 数据推送模拟程序
+add_executable(eeg_sender src/eeg_sender.cpp src/utils.cpp)
 
 # 链接库到可执行文件
-target_link_libraries(rsvp_rknn ${LINK_LIBS} cnpy)
+target_link_libraries(rsvp_fpga cnpy)
+target_link_libraries(eeg_sender cnpy)
 

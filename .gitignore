@@ -1,7 +1,8 @@
 *.npz
-3rdparty/
 build/
 .vscode/
 tests/
 tools/
 log.txt
+data/dat/*
+!data/dat/.keep

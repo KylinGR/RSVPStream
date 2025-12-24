@@ -29,7 +29,7 @@ void load_datfile2coeff_b16(const std::string& strFilename,uint32_t reg_adr,uint
 {
 	std::string strFile;
     uint64_t tot_size;
-	strFile  = "/home/hzhy/cpp_work/dat/"+strFilename;
+	strFile  = "/home/hzhy/RSVPStream/data/dat/"+strFilename;
  	printf("strFile =%s\n",strFile.c_str());
     ram_coeff_b16.resize(reg_len); // ensure buffer is large enough for the read
 	file_base file(strFile,FILE_DIR::FIN,FILE_TYPE::BINARY);		
