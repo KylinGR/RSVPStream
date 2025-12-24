@@ -9,7 +9,6 @@ char *allocated = NULL;
 uint8_t* map = NULL;
 float X_global_scale[100];
 float X_local_scale[100];
-float htot_gold[17*100];
 
 float hexToFloat_ptr(uint32_t hex) {
     return *reinterpret_cast<float*>(&hex);
@@ -138,33 +137,6 @@ void Vec2DDR(const std::vector<int16_t>& data, uint32_t ddr_sta_adr)
     // if (ret != 0) {
     //     fprintf(stderr, "Vec2DDR, addr=0x%x, size=%zu\n", ddr_sta_adr, byte_size);
     // }
-}
-
-// void Vec2DDR(const std::vector<int16_t>& data, uint32_t ddr_sta_adr)
-// {
-//     size_t byte_size = data.size() * sizeof(int16_t);
-
-//     // 拷贝到 allocated（已对齐）
-//     memcpy(allocated, data.data(), byte_size);
-
-//     int ret = write_from_buffer(FPGA_H2C_NODE, fdH2C,
-//                                 (char*)allocated,
-//                                 byte_size,
-//                                 ddr_sta_adr);
-//     if (ret != 0) {
-//         fprintf(stderr, "Vec2DDR failed, addr=0x%x, size=%zu\n",
-//                 ddr_sta_adr, byte_size);
-//     }
-// }
-
-
-void LoadGoldDat()
-{
-    std::string strFile;
-    uint64_t tot_size;
-    strFile = "/home/hzhy/cpp_work/dat/h_total_float.dat";
-    file_base file(strFile, FILE_DIR::FIN, FILE_TYPE::BINARY);		
-    tot_size = file.readAll((char*)htot_gold);
 }
 
 void NetRegInit()

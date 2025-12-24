@@ -19,23 +19,22 @@ FPGAProcessor::FPGAProcessor() : s_all(0), s_data(0), bErr(false) {
         throw std::runtime_error("FPGA初始化失败");
     }
 
-    load_coeff();
     Reset();
-    LoadGoldDat();
-
+    load_coeff();
+    
     std::string strFile;
-    strFile = "/home/hzhy/cpp_work/dat/local_coef.dat";
+    strFile = "/home/hzhy/RSVPStream/data/dat/local_coef.dat";
     File2DDR(strFile, LOCAL_COEFF_ADR);
-
-    strFile = "/home/hzhy/cpp_work/dat/b_local.dat";
+    
+    strFile = "/home/hzhy/RSVPStream/data/dat/b_local.dat";
     File2DDR(strFile, BLOCAL_COEFF_ADR);
-
-    strFile = "/home/hzhy/cpp_work/dat/global_coef.dat";
+    
+    strFile = "/home/hzhy/RSVPStream/data/dat/global_coef.dat";
     File2DDR(strFile, GLOBAL_COEFF_ADR);
-
-    strFile = "/home/hzhy/cpp_work/dat/Q_global.dat";
+    
+    strFile = "/home/hzhy/RSVPStream/data/dat/Q_global.dat";
     File2DDR(strFile, QGLOB_COEFF_ADR);
-
+    
     NetRegInit();
 
     int32_t dat = RegRd(0xc000);
@@ -93,11 +92,6 @@ float FPGAProcessor::fpga_runner(const std::vector<std::vector<float>>& x_local_
     for (int i = 0; i < 17; i++) {
         dat = RegRd((0x20 + i) << 2);
         dat_fp = hexToFloat_ptr(dat);
-
-        // if (abs(dat_fp - htot_gold[times]) > 0.001) {
-        //     bErr = true;
-        //     printf("R[%d]=%f,%f(gold)\n", i, dat_fp, htot_gold[times]);
-        // }
         s_data += sigmoid(dat_fp);
     }
 

@@ -103,7 +103,6 @@ extern char *allocated;
 extern uint8_t* map;
 extern float X_global_scale[100];
 extern float X_local_scale[100];
-extern float htot_gold[17*100];
 
 // 函数声明
 template<typename ... Args>
@@ -124,7 +123,6 @@ void RegWr(uint32_t u32Adr, uint32_t u32Dat);
 uint32_t RegRd(uint32_t u32Adr);
 void Vec2DDR(const std::vector<int16_t>& data, uint32_t ddr_sta_adr);
 void File2DDR(string& strFile, uint32_t ddr_sta_adr);
-void LoadGoldDat();
 void NetRegInit();
 void Start();
 void Reset();
