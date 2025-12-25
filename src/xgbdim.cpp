@@ -11,6 +11,9 @@
 #include <mutex>
 #include <condition_variable>
 #include <atomic>
+#include <fstream>
+#include <sstream>
+#include <optional>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -55,6 +58,12 @@ bool recv_all(int fd, void* buffer, size_t len) {
         remaining -= static_cast<size_t>(n);
     }
     return true;
+}
+
+std::filesystem::path default_coeff_dir() {
+    const char* env = std::getenv("RSVP_DAT_DIR");
+    if (env && *env) return std::filesystem::path(env);
+    return std::filesystem::path("/home/hzhy/RSVPStream/data/dat");
 }
 }
 
@@ -246,12 +255,63 @@ std::vector<std::vector<float>> XGBDIM::get_3D_cuboids(const std::vector<std::ve
     return Tset;
 }
 
+std::optional<std::pair<std::string, std::string>> XGBDIM::poll_update_flag() {
+    if (!enable_updates_ || update_flag_path_.empty()) return std::nullopt;
+    namespace fs = std::filesystem;
+    fs::path flag_path(update_flag_path_);
+    std::error_code ec;
+    auto mtime = fs::last_write_time(flag_path, ec);
+    if (ec || mtime <= update_flag_mtime_) return std::nullopt;
+
+    std::ifstream fin(flag_path);
+    if (!fin.is_open()) return std::nullopt;
+
+    std::ostringstream oss;
+    oss << fin.rdbuf();
+    const std::string content = oss.str();
+
+    auto extract_json_string = [&](const char* key) -> std::string {
+        // Minimal JSON string extractor for patterns like: "key": "value"
+        // This intentionally keeps dependencies minimal.
+        const std::string needle = std::string("\"") + key + "\"";
+        size_t pos = content.find(needle);
+        if (pos == std::string::npos) return {};
+        pos = content.find(':', pos + needle.size());
+        if (pos == std::string::npos) return {};
+        pos = content.find('"', pos);
+        if (pos == std::string::npos) return {};
+        const size_t start = pos + 1;
+        const size_t end = content.find('"', start);
+        if (end == std::string::npos || end <= start) return {};
+        return content.substr(start, end - start);
+    };
+
+    std::string dat_dir_new = extract_json_string("dat_dir");
+    std::string scale_file_new = extract_json_string("scale_file");
+
+    if (dat_dir_new.empty()) return std::nullopt;
+    if (scale_file_new.empty()) {
+        scale_file_new = (fs::path(dat_dir_new) / "quantized_scales_hex.txt").string();
+    }
+
+    update_flag_mtime_ = mtime;
+    return std::make_pair(dat_dir_new, scale_file_new);
+}
+
 std::tuple<float, float, float, float, float> XGBDIM::test(std::string data_dir,
                                                           bool use_queue,
                                                           size_t queue_samples,
-                                                          EEGSampleQueue* queue) {
+                                                          EEGSampleQueue* queue,
+                                                          const std::string& coeff_dir,
+                                                          const std::string& scale_file,
+                                                          const std::string& update_flag_path) {
     get_3Dconv();
-    FPGAProcessor processor;
+    coeff_dir_ = !coeff_dir.empty() ? coeff_dir : default_coeff_dir().string();
+    scale_file_ = !scale_file.empty() ? scale_file : (std::filesystem::path(coeff_dir_) / "quantized_scales_hex.txt").string();
+    update_flag_path_ = update_flag_path;
+    update_flag_mtime_ = std::filesystem::file_time_type::min();
+    enable_updates_ = use_queue && !update_flag_path_.empty();
+    FPGAProcessor processor(coeff_dir_, scale_file_);
 
     std::vector<float> s_all;
     std::map<long long, int> loop_cost_hist;
@@ -290,6 +350,17 @@ std::tuple<float, float, float, float, float> XGBDIM::test(std::string data_dir,
             }
             process_sample(sample);
             ++consumed;
+            if (enable_updates_) {
+                if (auto req = poll_update_flag()) {
+                    auto [new_dat, new_scale] = *req;
+                    if (processor.reload_parameters(new_dat, new_scale)) {
+                        coeff_dir_ = new_dat;
+                        scale_file_ = new_scale;
+                    } else {
+                        std::cerr << "Parameter reload failed, keeping previous parameters." << std::endl;
+                    }
+                }
+            }
             if (queue_samples > 0 && consumed >= queue_samples) {
                 break;
             }

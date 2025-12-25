@@ -4,5 +4,8 @@ build/
 tests/
 tools/
 log.txt
+*.dat
 data/dat/*
+data/dat_v2/*
 !data/dat/.keep
+*.pt

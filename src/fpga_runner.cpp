@@ -6,47 +6,214 @@
 #include <cstdio>
 #include <stdexcept>
 #include <utility>
+#include <unordered_map>
+#include <filesystem>
+#include <optional>
+#include <cerrno>
+#include <cstdlib>
+#include <cstring>
 
-FPGAProcessor::FPGAProcessor() : s_all(0), s_data(0), bErr(false) {
+namespace {
+std::filesystem::path default_dat_dir() {
+    const char* env = std::getenv("RSVP_DAT_DIR");
+    if (env && *env) return std::filesystem::path(env);
+    return std::filesystem::path("/home/hzhy/RSVPStream/data/dat");
+}
+
+struct ScaleSet {
+    float w_global = 0.f;
+    float q_global = 0.f;
+    float b_global = 0.f;
+    float beta_global = 0.f;
+    float beta_local = 0.f;
+    float w_local = 0.f;
+    float b_local = 0.f;
+    float lr_model = 0.f;
+    float gstf_weight = 0.f;
+    float m_global = 0.f;
+    float m_local = 0.f;
+    float merge_g = 0.f; // merge_isSg_Gamma_global_scale
+    float merge_l = 0.f; // merge_isSl_gamma_local_scale
+};
+
+std::optional<float> parse_hex_float(const std::string& token) {
+    errno = 0;
+    char* end = nullptr;
+    const unsigned long v = std::strtoul(token.c_str(), &end, 16);
+    if (errno != 0 || end == token.c_str()) return std::nullopt;
+    const uint32_t val = static_cast<uint32_t>(v);
+    float f = 0.f;
+    std::memcpy(&f, &val, sizeof(float));
+    return f;
+}
+
+std::optional<ScaleSet> load_scales_file(const std::filesystem::path& scale_file) {
+    if (scale_file.empty()) return std::nullopt;
+    FILE* fp = std::fopen(scale_file.c_str(), "r");
+    if (!fp) return std::nullopt;
+
+    std::unordered_map<std::string, float> kv;
+    auto trim_inplace = [](std::string& s) {
+        const auto first = s.find_first_not_of(" \t\r\n");
+        if (first == std::string::npos) {
+            s.clear();
+            return;
+        }
+        const auto last = s.find_last_not_of(" \t\r\n");
+        s = s.substr(first, last - first + 1);
+    };
+
+    char buf[512];
+    while (std::fgets(buf, sizeof(buf), fp) != nullptr) {
+        std::string line(buf);
+        auto pos = line.find(':');
+        if (pos == std::string::npos) continue;
+        std::string key = line.substr(0, pos);
+        std::string val = line.substr(pos + 1);
+        trim_inplace(key);
+        trim_inplace(val);
+        auto parsed = parse_hex_float(val);
+        if (parsed) kv[key] = *parsed;
+    }
+    std::fclose(fp);
+
+    ScaleSet s;
+
+    const char* required_keys[] = {
+        "W_global_scale",
+        "Q_global_scale",
+        "b_global_scale",
+        "Beta_global_scale",
+        "beta_local_scale",
+        "w_local_scale",
+        "b_local_scale",
+        "lr_model_scale",
+        "gstf_weight_scale",
+        "M_global_scale",
+        "M_local_scale",
+        "merge_isSg_Gamma_global_scale",
+        "merge_isSl_gamma_local_scale",
+    };
+    for (const char* k : required_keys) {
+        if (!kv.count(k)) {
+            std::fprintf(stderr, "scale file missing key: %s\n", k);
+            return std::nullopt;
+        }
+    }
+
+    s.w_global = kv["W_global_scale"];
+    s.q_global = kv["Q_global_scale"];
+    s.b_global = kv["b_global_scale"];
+    s.beta_global = kv["Beta_global_scale"];
+    s.beta_local = kv["beta_local_scale"];
+    s.w_local = kv["w_local_scale"];
+    s.b_local = kv["b_local_scale"];
+    s.lr_model = kv["lr_model_scale"];
+    s.gstf_weight = kv["gstf_weight_scale"];
+    s.m_global = kv["M_global_scale"];
+    s.m_local = kv["M_local_scale"];
+    s.merge_g = kv["merge_isSg_Gamma_global_scale"];
+    s.merge_l = kv["merge_isSl_gamma_local_scale"];
+
+    return s;
+}
+
+void apply_scales(const ScaleSet& s) {
+    // Always overwrite NetRegInit constants.
+    RegWr(ADR_WR_M_LOCAL_SCALE, floatToHex(s.m_local));
+    RegWr(ADR_GAMMA_LOCAL_SCALE, floatToHex(s.merge_l));
+    RegWr(ADR_BETA_LOCAL_SCALE, floatToHex(s.beta_local));
+    RegWr(ADR_B_LOCAL_SCALE, floatToHex(s.b_local));
+    RegWr(ADR_W_LOCAL_SCALE, floatToHex(s.w_local));
+    RegWr(ADR_LR_MODEL_SCALE, floatToHex(s.lr_model));
+
+    RegWr(ADR_GAMMA_GLOBSCALE, floatToHex(s.merge_g));
+    RegWr(ADR_MGLOBAL_SCALE, floatToHex(s.m_global));
+    RegWr(ADR_BETAGLOB_SCALE, floatToHex(s.beta_global));
+    RegWr(ADR_WGLOBAL_SCALE, floatToHex(s.w_global));
+    RegWr(ADR_QGLOB_SCALE, floatToHex(s.q_global));
+    RegWr(ADR_BGLOBAL_SCALE, floatToHex(s.b_global));
+    RegWr(ADR_GSTF_WEIGHT_SCALE, floatToHex(s.gstf_weight));
+}
+}
+
+FPGAProcessor::FPGAProcessor(const std::filesystem::path& dat_dir,
+                             const std::filesystem::path& scale_file)
+    : s_all(0), s_data(0), bErr(false), dat_dir_(dat_dir.empty() ? default_dat_dir() : dat_dir),
+      scale_file_(scale_file) {
     std::cout << "Hello,World!" << __DATE__ << "," << __TIME__ << std::endl;
-    
-    uint64_t newTime, oldTime, loopNum = 0;
-    int s32Ret = 0;
-    uint8_t temp;
-    bool flag;
+    if (!scale_file_.empty() && !std::filesystem::exists(scale_file_)) {
+        scale_file_.clear();
+    }
 
     if (InitFPGA() != 0) {
         throw std::runtime_error("FPGA初始化失败");
     }
 
+    set_dat_dir(dat_dir_);
     Reset();
     load_coeff();
-    
-    std::string strFile;
-    strFile = "/home/hzhy/RSVPStream/data/dat/local_coef.dat";
-    File2DDR(strFile, LOCAL_COEFF_ADR);
-    
-    strFile = "/home/hzhy/RSVPStream/data/dat/b_local.dat";
-    File2DDR(strFile, BLOCAL_COEFF_ADR);
-    
-    strFile = "/home/hzhy/RSVPStream/data/dat/global_coef.dat";
-    File2DDR(strFile, GLOBAL_COEFF_ADR);
-    
-    strFile = "/home/hzhy/RSVPStream/data/dat/Q_global.dat";
-    File2DDR(strFile, QGLOB_COEFF_ADR);
-    
+
+    auto load_ddr = [&](const std::string& filename, uint32_t addr) {
+        std::string path = (dat_dir_ / filename).string();
+        File2DDR(path, addr);
+    };
+
+    load_ddr("local_coef.dat", LOCAL_COEFF_ADR);
+    load_ddr("b_local.dat", BLOCAL_COEFF_ADR);
+    load_ddr("global_coef.dat", GLOBAL_COEFF_ADR);
+    load_ddr("Q_global.dat", QGLOB_COEFF_ADR);
+
     NetRegInit();
+    if (!scale_file_.empty()) {
+        if (auto scales = load_scales_file(scale_file_)) {
+            apply_scales(*scales);
+        }
+    }
 
     int32_t dat = RegRd(0xc000);
-	printf("FPGA VERSION =0x%x\n",dat);
+    printf("FPGA VERSION =0x%x\n",dat);
 
     dat = RegRd(ADR_ALG_START);
     printf("ADR_ALG_START=%x\n", dat);
 
     dat = RegRd(ADR_HW_STATUS);
     printf("ADR_HW_STATUS=%x\n", dat);
+}
 
-    // LoadScale();
+bool FPGAProcessor::reload_parameters(const std::filesystem::path& dat_dir,
+                                      const std::filesystem::path& scale_file) {
+    std::lock_guard<std::mutex> lock(reload_mtx_);
+    std::filesystem::path new_dat = dat_dir.empty() ? dat_dir_ : dat_dir;
+    std::filesystem::path new_scale = scale_file.empty() ? scale_file_ : scale_file;
+
+    set_dat_dir(new_dat);
+    try {
+        load_coeff();
+        auto load_ddr = [&](const std::string& filename, uint32_t addr) {
+            std::string path = (new_dat / filename).string();
+            File2DDR(path, addr);
+        };
+        load_ddr("local_coef.dat", LOCAL_COEFF_ADR);
+        load_ddr("b_local.dat", BLOCAL_COEFF_ADR);
+        load_ddr("global_coef.dat", GLOBAL_COEFF_ADR);
+        load_ddr("Q_global.dat", QGLOB_COEFF_ADR);
+
+        // scales
+        if (!new_scale.empty() && std::filesystem::exists(new_scale)) {
+            if (auto scales = load_scales_file(new_scale)) {
+                apply_scales(*scales);
+            }
+        }
+
+        dat_dir_ = new_dat;
+        scale_file_ = new_scale;
+        std::cout << "Parameters reloaded from " << new_dat << std::endl;
+        return true;
+    } catch (const std::exception& ex) {
+        std::cerr << "reload_parameters failed: " << ex.what() << std::endl;
+        return false;
+    }
 }
 
 float FPGAProcessor::fpga_runner(const std::vector<std::vector<float>>& x_local_data, const std::vector<std::vector<float>>& x_global_data) {

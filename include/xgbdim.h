@@ -7,6 +7,8 @@
 #include <condition_variable>
 #include <atomic>
 #include <thread>
+#include <filesystem>
+#include <optional>
 
 // 线程安全的脑电样本队列，支持阻塞读取
 class EEGSampleQueue {
@@ -32,7 +34,10 @@ public:
         std::string data_dir,
         bool use_queue = false,
         size_t queue_samples = 0,
-        EEGSampleQueue* queue = nullptr);
+        EEGSampleQueue* queue = nullptr,
+        const std::string& coeff_dir = "",
+        const std::string& scale_file = "",
+        const std::string& update_flag_path = "");
 
     // 监听套接字接收推送的脑电信号流，推入队列，推送终止信号后由消费端退出
     std::thread start_socket_receiver(EEGSampleQueue& queue,
@@ -62,6 +67,12 @@ private:
     int N_conv;
     int N_model;
 
+    std::string coeff_dir_;
+    std::string scale_file_;
+    std::string update_flag_path_;
+    std::filesystem::file_time_type update_flag_mtime_{};
+    bool enable_updates_ = false;
+
     std::vector<std::vector<float>> Tset_test_global; 
     std::vector<std::vector<float>> NTset_test_global; 
     int K1t;
@@ -70,4 +81,5 @@ private:
     std::vector<std::vector<float>> read_data(std::string data_src); 
     std::vector<std::vector<float>> get_3D_cuboids(const std::vector<std::vector<float>>& data);
     void preprocess(std::vector<std::vector<float>>& data);
+    std::optional<std::pair<std::string, std::string>> poll_update_flag();
 };

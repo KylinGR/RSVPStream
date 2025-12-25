@@ -9,6 +9,7 @@
 #include <string>
 #include <cstring>
 #include <cstdio>
+#include <filesystem>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>
@@ -129,6 +130,8 @@ void Reset();
 void LoadScale();
 void load_datfile2coeff_b16(const std::string& strFilename,uint32_t reg_adr,uint16_t reg_len);
 void load_coeff();
+void set_dat_dir(const std::filesystem::path& dir);
+std::filesystem::path dat_dir();
 
 // 初始化和清理函数
 int InitFPGA();

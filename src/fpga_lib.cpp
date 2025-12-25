@@ -1,5 +1,13 @@
 #include "fpga_lib.h"
 
+#include <cstdlib>
+#include <filesystem>
+#include <mutex>
+#include <cstdio>
+#include <cstring>
+#include <cmath>
+#include <algorithm>
+
 // 全局变量定义
 std::vector<uint16_t> ram_coeff_b16;
 int verbose = 0;
@@ -9,6 +17,31 @@ char *allocated = NULL;
 uint8_t* map = NULL;
 float X_global_scale[100];
 float X_local_scale[100];
+static size_t allocated_size = 0;
+
+namespace {
+std::filesystem::path dat_dir_path;
+std::mutex dat_dir_mtx;
+
+std::filesystem::path resolve_dat_dir() {
+    const char* env = std::getenv("RSVP_DAT_DIR");
+    if (env && *env) return std::filesystem::path(env);
+    return std::filesystem::path("/home/hzhy/RSVPStream/data/dat");
+}
+}
+
+void set_dat_dir(const std::filesystem::path& dir) {
+    std::lock_guard<std::mutex> lock(dat_dir_mtx);
+    dat_dir_path = dir;
+}
+
+std::filesystem::path dat_dir() {
+    std::lock_guard<std::mutex> lock(dat_dir_mtx);
+    if (dat_dir_path.empty()) {
+        dat_dir_path = resolve_dat_dir();
+    }
+    return dat_dir_path;
+}
 
 float hexToFloat_ptr(uint32_t hex) {
     return *reinterpret_cast<float*>(&hex);
@@ -26,14 +59,18 @@ float sigmoid(float x) {
 
 void load_datfile2coeff_b16(const std::string& strFilename,uint32_t reg_adr,uint16_t reg_len)
 {
-	std::string strFile;
+    std::filesystem::path strFile = dat_dir() / strFilename;
     uint64_t tot_size;
-	strFile  = "/home/hzhy/RSVPStream/data/dat/"+strFilename;
  	printf("strFile =%s\n",strFile.c_str());
     ram_coeff_b16.resize(reg_len); // ensure buffer is large enough for the read
-	file_base file(strFile,FILE_DIR::FIN,FILE_TYPE::BINARY);		
-    tot_size = file.readAll(reinterpret_cast<char*>(ram_coeff_b16.data()));
-    uint32_t elems = std::min<uint32_t>(reg_len, tot_size / sizeof(uint16_t));
+    std::string strFileStr = strFile.string();
+    file_base file(strFileStr,FILE_DIR::FIN,FILE_TYPE::BINARY);		
+
+    // Read at most the expected number of bytes to avoid overflowing ram_coeff_b16.
+    const uint32_t expected_bytes = static_cast<uint32_t>(reg_len) * static_cast<uint32_t>(sizeof(uint16_t));
+    const int32_t read_bytes = file.read(reinterpret_cast<char*>(ram_coeff_b16.data()), expected_bytes);
+    tot_size = (read_bytes > 0) ? static_cast<uint64_t>(read_bytes) : 0;
+    uint32_t elems = std::min<uint32_t>(reg_len, static_cast<uint32_t>(tot_size / sizeof(uint16_t)));
     for(uint32_t i=0;i<elems;i++)
 	{
 		RegWr(reg_adr+i*4,ram_coeff_b16[i]);
@@ -121,10 +158,40 @@ uint32_t RegRd(uint32_t u32Adr)
 
 void File2DDR(string& strFile, uint32_t ddr_sta_adr)
 {
-    uint64_t tot_size;
-    file_base file(strFile, FILE_DIR::FIN, FILE_TYPE::BINARY);		
-    tot_size = file.readAll(allocated);
-    int s32Ret = write_from_buffer(FPGA_H2C_NODE, fdH2C, (char *)allocated, tot_size, ddr_sta_adr);
+    // Stream file to FPGA DDR in chunks to avoid any host-side buffer overflow.
+    const int in_fd = ::open(strFile.c_str(), O_RDONLY);
+    if (in_fd < 0) {
+        throw std::runtime_error("File2DDR: failed to open " + strFile + ": " + std::string(strerror(errno)));
+    }
+
+    // Ensure we have a staging buffer.
+    if (allocated == NULL || allocated_size == 0) {
+        const size_t alignment = 1048576; // 1MB
+        const size_t init_size = HZHY_PS_BUF_LEN;
+        if (posix_memalign((void **)&allocated, alignment, init_size) != 0 || allocated == NULL) {
+            ::close(in_fd);
+            throw std::runtime_error("File2DDR: posix_memalign failed");
+        }
+        allocated_size = init_size;
+    }
+
+    uint64_t offset = 0;
+    while (true) {
+        const size_t chunk = allocated_size;
+        ssize_t n = ::read(in_fd, allocated, chunk);
+        if (n == 0) {
+            break; // EOF
+        }
+        if (n < 0) {
+            const std::string err = strerror(errno);
+            ::close(in_fd);
+            throw std::runtime_error("File2DDR: read failed for " + strFile + ": " + err);
+        }
+        (void)write_from_buffer(FPGA_H2C_NODE, fdH2C, (char *)allocated, (uint64_t)n, ddr_sta_adr + offset);
+        offset += (uint64_t)n;
+    }
+
+    ::close(in_fd);
 }
 
 void Vec2DDR(const std::vector<int16_t>& data, uint32_t ddr_sta_adr)
@@ -209,7 +276,11 @@ int InitFPGA()
         printf("Open node %s success\n", FPGA_H2C_NODE);
     }
     
-    posix_memalign((void **)&allocated, 1048576 /*alignment */ , HZHY_PS_BUF_LEN);
+    if (posix_memalign((void **)&allocated, 1048576 /*alignment */ , HZHY_PS_BUF_LEN) != 0 || allocated == NULL) {
+        printf("posix_memalign failed\n");
+        return -1;
+    }
+    allocated_size = HZHY_PS_BUF_LEN;
     printf("allocated'a address=%p\n", allocated);
     
     return 0;
@@ -220,6 +291,7 @@ void CleanupFPGA()
     if (allocated) {
         free(allocated);
         allocated = NULL;
+        allocated_size = 0;
     }
     if (fdH2C >= 0) {
         close(fdH2C);
