@@ -9,3 +9,4 @@ data/dat/*
 data/dat_v2/*
 !data/dat/.keep
 *.pt
+python/__pycache__/

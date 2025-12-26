@@ -26,7 +26,7 @@ std::mutex dat_dir_mtx;
 std::filesystem::path resolve_dat_dir() {
     const char* env = std::getenv("RSVP_DAT_DIR");
     if (env && *env) return std::filesystem::path(env);
-    return std::filesystem::path("/home/hzhy/RSVPStream/data/dat");
+    return std::filesystem::path("data/dat");
 }
 }
 

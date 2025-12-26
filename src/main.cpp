@@ -17,8 +17,8 @@ void print_usage() {
 
 int main(int argc, char** argv) {
     std::string mode = "file";              // file | queue
-    std::string data_dir = "/home/hzhy/RSVPStream/data/egg_data";
-    std::string coeff_dir = "/home/hzhy/RSVPStream/data/dat";
+    std::string data_dir = "data/eeg_data";
+    std::string coeff_dir = "data/dat";
     std::string scale_file;
     std::string update_flag_path; // queue-only
     size_t max_samples = 10;

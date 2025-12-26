@@ -63,7 +63,7 @@ bool recv_all(int fd, void* buffer, size_t len) {
 std::filesystem::path default_coeff_dir() {
     const char* env = std::getenv("RSVP_DAT_DIR");
     if (env && *env) return std::filesystem::path(env);
-    return std::filesystem::path("/home/hzhy/RSVPStream/data/dat");
+    return std::filesystem::path("data/dat");
 }
 }
 

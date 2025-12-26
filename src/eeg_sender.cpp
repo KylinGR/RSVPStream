@@ -37,7 +37,7 @@ void print_usage() {
 int main(int argc, char** argv) {
     std::string host = "127.0.0.1";
     int port = 5001;
-    std::string data_dir = "/home/hzhy/RSVPStream/data/egg_data";
+    std::string data_dir = "data/eeg_data";
     size_t max_samples = 10;
     int interval_ms = 1000;
 

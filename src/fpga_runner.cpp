@@ -17,7 +17,7 @@ namespace {
 std::filesystem::path default_dat_dir() {
     const char* env = std::getenv("RSVP_DAT_DIR");
     if (env && *env) return std::filesystem::path(env);
-    return std::filesystem::path("/home/hzhy/RSVPStream/data/dat");
+    return std::filesystem::path("data/dat");
 }
 
 struct ScaleSet {
