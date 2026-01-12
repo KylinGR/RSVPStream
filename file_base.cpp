@@ -42,9 +42,41 @@ uint64_t file_base::readAll(char* arrOut)
 		pt += siz;
 		siz_tot += siz;
 	}
-	
-    
+}
+
+uint64_t file_base::readAll(std::vector<uint32_t>& arrOut)
+{
+	int32_t siz;
+	int32_t siz_tot =0 ;
  
+    file.seekg(0, std::ios::end);
+    size_t size = file.tellg();
+    file.seekg(0, std::ios::beg);
+    std::cout<<"file size="<<size<<std::endl;
+    // std::vector<uint32_t> buffer(size / sizeof(uint32_t));
+	arrOut.resize((size + sizeof(uint32_t) - 1) / sizeof(uint32_t)); // 向上取整
+    file.read(reinterpret_cast<char*>(arrOut.data()), size);
+    
+    // file.close();
+    return size;
+}
+
+
+uint64_t file_base::readAll(std::vector<uint16_t>& arrOut)
+{
+	int32_t siz;
+	int32_t siz_tot =0 ;
+ 
+    file.seekg(0, std::ios::end);
+    size_t size = file.tellg(); 
+    file.seekg(0, std::ios::beg);
+    std::cout<<"file size="<<size<<std::endl;
+ 
+	arrOut.resize((size + sizeof(uint16_t) - 1) / sizeof(uint16_t)); // 向上取整
+    file.read(reinterpret_cast<char*>(arrOut.data()), size);
+    
+    // file.close();
+    return size;
 }
 
 int32_t file_base::read(char* arrOut,uint32_t size)

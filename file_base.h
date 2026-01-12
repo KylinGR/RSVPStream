@@ -4,6 +4,7 @@
  
 #include <string>
 #include <fstream>
+#include <vector>
 #include <sys/stat.h>
 //template<typename ... Args>
 //std::string strFormat(const std::string& format, Args ... args) {
@@ -29,6 +30,8 @@ public:
 	file_base(std::string& strFileName, FILE_DIR eDir = FILE_DIR::FIN, FILE_TYPE eFileType = FILE_TYPE::BINARY);
 	int32_t read(char* arrOut, uint32_t size);
 	uint64_t readAll(char* arrOut);
+	uint64_t readAll(std::vector<uint32_t>& arrOut);
+	uint64_t readAll(std::vector<uint16_t>& arrOut);
     void readLine(std::string& strOut);
 	void  write(char* arrIn, uint32_t siz);
     void  write(std::string& strIn );
